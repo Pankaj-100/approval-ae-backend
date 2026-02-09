@@ -10,13 +10,13 @@ const sendEmail = async(name,email,template)=>{
       // secure: false,
       service: 'gmail',
       auth: {
-        user: 'vinek.quantumitinnovation@gmail.com',
+        user: 'pankajtech1234@gmail.com',
         pass: process.env.NODE_MAILER_PASS
       },
     });
     
     let mailOptions = {
-      from: `Bidding App`,
+      from: `approval-ae <`,
       to: `${email}`,
       subject: `hello ${name || 'user'} `,
       text: 'Hello world?',
