@@ -5,7 +5,6 @@ const plotDetailsSchema = new mongoose.Schema(
     plotNumber: {
       type: Number,
       required: true,
-      unique: true,
     },
 
     buildingName: {
@@ -15,14 +14,12 @@ const plotDetailsSchema = new mongoose.Schema(
 
     buildingSqft: {
       type: Number,
-      default: null,
       required: true,
     },
 
     buildingUsage: [
       {
         type: String,
-        enum: ["Residential", "Commercial", "Industrial", "Other"],
         required: true,
       },
     ],
@@ -31,27 +28,22 @@ const plotDetailsSchema = new mongoose.Schema(
       siteAffectionPlan: {
         type: String,
         default: null,
-        // required: true,
       },
       dmCompletionCertificate: {
         type: String,
         default: null,
-        // required: true,
       },
       civilDefenseCertificate: {
         type: String,
         default: null,
-        // required: true,
       },
       amcContract: {
         type: String,
         default: null,
-        // required: true,
       },
       dewaApprovedLoadSchedule: {
         type: String,
         default: null,
-        // required: true,
       },
     },
 

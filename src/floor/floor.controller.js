@@ -92,6 +92,24 @@ exports.updateFloor = async (req, res) => {
   }
 };
 
+//get all floors
+exports.getAllFloors = async (req, res) => {
+  try {
+    const floors = await FloorDetails.find({ isDeleted: false }).sort({
+      createdAt: -1,
+    });
+    res.status(200).json({
+      success: true,
+      data: floors,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // delete floor
 exports.deleteFloor = async (req, res) => {
   const id = req.params.id;

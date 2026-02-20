@@ -58,3 +58,29 @@ exports.upload = multer({
   fileFilter,
   limits: { fileSize: 11006600, files: 5 },
 });
+
+// const fileFilter = (req, file, cb) => {
+//   const mimetype = file.mimetype;
+
+//   // allow image
+//   if (mimetype.startsWith("image/")) {
+//     return cb(null, true);
+//   }
+
+//   // allow pdf
+//   if (mimetype === "application/pdf") {
+//     return cb(null, true);
+//   }
+
+//   // reject other files
+//   cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE"), false);
+// };
+
+// exports.upload = multer({
+//   storage,
+//   fileFilter,
+//   limits: {
+//     fileSize: 11006600,
+//     files: 5,
+//   },
+// });
