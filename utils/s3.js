@@ -39,48 +39,48 @@ exports.s3UploadMulti = async (files) => {
 
 const storage = multer.memoryStorage();
 
-const fileFilter = (req, file, cb) => {
-  if (file.mimetype.split("/")[0] === "image") {
-    req.video_file = false;
-    cb(null, true);
-    //   } else if (file.mimetype.split("/")[0] === "video") {
-    //     req.video_file = true;
-    //     cb(null, true);
-  } else {
-    cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE"), false);
-  }
-};
-
-// ["image", "jpeg"]
-
-exports.upload = multer({
-  storage,
-  fileFilter,
-  limits: { fileSize: 11006600, files: 5 },
-});
-
 // const fileFilter = (req, file, cb) => {
-//   const mimetype = file.mimetype;
-
-//   // allow image
-//   if (mimetype.startsWith("image/")) {
-//     return cb(null, true);
+//   if (file.mimetype.split("/")[0] === "image") {
+//     req.video_file = false;
+//     cb(null, true);
+//     //   } else if (file.mimetype.split("/")[0] === "video") {
+//     //     req.video_file = true;
+//     //     cb(null, true);
+//   } else {
+//     cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE"), false);
 //   }
-
-//   // allow pdf
-//   if (mimetype === "application/pdf") {
-//     return cb(null, true);
-//   }
-
-//   // reject other files
-//   cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE"), false);
 // };
+
+// // ["image", "jpeg"]
 
 // exports.upload = multer({
 //   storage,
 //   fileFilter,
-//   limits: {
-//     fileSize: 11006600,
-//     files: 5,
-//   },
+//   limits: { fileSize: 11006600, files: 5 },
 // });
+
+const fileFilter = (req, file, cb) => {
+  const mimetype = file.mimetype;
+
+  // allow image
+  if (mimetype.startsWith("image/")) {
+    return cb(null, true);
+  }
+
+  // allow pdf
+  if (mimetype === "application/pdf") {
+    return cb(null, true);
+  }
+
+  // reject other files
+  cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE"), false);
+};
+
+exports.upload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 11006600,
+    files: 5,
+  },
+});

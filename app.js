@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const errorMiddleware = require("./middlewares/error");
 const dotenv = require("dotenv");
+dotenv.config({ path: "./config/config.env" });
 const app = express();
 const userRoute = require("./src/user/user.router");
 const plotRoute = require("./src/plot/plot.router");
@@ -11,7 +12,7 @@ const approvedDocumentRoute = require("./src/approved-documents/approved-documen
 const policyManagementRoute = require("./src/policy-management/policy-management.router");
 const contractorApplicationRoute = require("./src/contractor-application/contractor-application.router");
 const drawingSubmissionRoute = require("./src/drawing-submission/drawing-submission.router");
-dotenv.config({ path: "./config/config.env" });
+const workPermitRoute = require("./src/work-permit/workPermit.router");
 
 app.use(express.json());
 app.use(
@@ -30,6 +31,7 @@ app.use("/api/v1/approved-documents", approvedDocumentRoute);
 app.use("/api/v1/policy-management", policyManagementRoute);
 app.use("/api/v1/contractor-application", contractorApplicationRoute);
 app.use("/api/v1/drawing-submission", drawingSubmissionRoute);
+app.use("/api/v1/work-permit", workPermitRoute);
 
 app.get("/", (req, res, next) => res.json({ message: "API is working" }));
 
