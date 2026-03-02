@@ -1,28 +1,33 @@
 const jwt = require("jsonwebtoken");
-const userModel = require("../models/userModel");
 const ErrorHandler = require("../utils/errorHandler");
+const User = require("../src/modules/user/user.model");
+
 
 exports.auth = async (req, res, next) => {
   try {
-    if (!req.headers.authorization) {
-      return res.status(401).send({
-        error: {
-          message: `Unauthorized.Please Send token in request header`,
-        },
-      });
+    const header = req.headers.authorization;
+
+    if (!header || !header.startsWith("Bearer ")) {
+      return next(new ErrorHandler("Unauthorized", 401));
     }
 
-    const { userId } = jwt.verify(
-      req.headers.authorization,
-      process.env.JWT_SECRET
-    );
-    console.log({ userId });
+    const token = header.split(" ")[1];
 
-    req.userId = userId;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findById(decoded.userId)
+      .populate("role")
+      .select("+password");
+
+    if (!user || user.isDeleted) {
+      return next(new ErrorHandler("Unauthorized", 401));
+    }
+
+    req.user = user;
 
     next();
   } catch (error) {
-    return res.status(401).send({ error: { message: `Unauthorized` } });
+    return next(new ErrorHandler("Unauthorized", 401));
   }
 };
 
