@@ -53,7 +53,9 @@ exports.register = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler(`${ROLE_NAME} with email ${email} already exists`, 409));
   }
 
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  const otp = "1234";
+
 
   const user = await User.create({
     name: username,
@@ -167,7 +169,9 @@ exports.resendVerificationOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Email is already verified", 400));
   }
 
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  const otp = "1234";
+
 
   user.otp = otp;
   user.otpExpire = Date.now() + 10 * 60 * 1000;
@@ -216,7 +220,8 @@ exports.login = catchAsync(async (req, res, next) => {
 
   // If email not verified → send OTP
   if (!user.isVerified) {
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+      // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+          const otp = "1234";
 
     user.otp = otp;
     user.otpExpire = Date.now() + 10 * 60 * 1000;
@@ -286,7 +291,8 @@ exports.sendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404));
   }
 
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  const otp = "1234";
 
   user.otp = otp;
   user.otpExpire = Date.now() + 10 * 60 * 1000;
@@ -334,8 +340,8 @@ exports.resendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404));
   }
 
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
+  // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  const otp = "1234";
   user.otp = otp;
   user.otpExpire = Date.now() + 10 * 60 * 1000;
 
@@ -487,7 +493,8 @@ exports.updateProfile = catchAsync(async (req, res) => {
     user.email = email;
     user.isVerified = false;
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otp = "1234";
     user.otp = otp;
     user.otpExpire = Date.now() + 10 * 60 * 1000;
   }

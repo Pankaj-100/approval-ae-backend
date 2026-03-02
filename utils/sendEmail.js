@@ -2,12 +2,18 @@ const nodemailer = require('nodemailer');
 
 const sendEmail = async(name,email,template)=>{
     
-   
+    // Return early without sending email
+    return {
+        success: true,
+        message: 'Email functionality is disabled',
+        note: 'OTP not sent - feature disabled',
+        recipient: email,
+        name: name
+    };
     
+    // The code below is commented out and won't execute
+    /*
     let transporter = nodemailer.createTransport({
-      // host: 'gmail',
-      // port: 587,
-      // secure: false,
       service: 'gmail',
       auth: {
         user: 'pankajtech1234@gmail.com',
@@ -27,12 +33,8 @@ const sendEmail = async(name,email,template)=>{
       if (error) {
         return console.log(error);
       }
-      // console.log('Message sent: %s', info.messageId);
-      // console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
     });
-    
-    
-    
-   
+    */
 }
- module.exports = sendEmail 
+
+module.exports = sendEmail;

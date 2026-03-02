@@ -82,8 +82,8 @@ exports.sendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404));
   }
 
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
+  // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  const otp = "1234";
   user.otp = otp;
   user.otpExpire = Date.now() + 10 * 60 * 1000;
   await user.save();
@@ -129,8 +129,8 @@ exports.resendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404));
   }
 
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
+  // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otp = "1234";
   user.otp = otp;
   user.otpExpire = Date.now() + 10 * 60 * 1000;
   await user.save();
@@ -276,8 +276,9 @@ exports.updateProfile = catchAsync(async (req, res) => {
     user.email = email;
     user.isVerified = false;
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    user.otp = otp;
+      // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+      const otp = "1234";
+      user.otp = otp;
     user.otpExpire = Date.now() + 10 * 60 * 1000;
   }
 
