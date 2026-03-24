@@ -1,33 +1,47 @@
-// middleware/authorization.js
-import Permission from "../models/permission.model.js";
-import RolePermission from "../models/rolePermission.model.js";
-import UserPermission from "../models/userPermission.model.js";
+const ErrorHandler = require("../utils/errorHandler");
 
-export const authorization = (permissionName) => {
+/**
+ * Authorization middleware factory
+ * Checks if user has required gate + priority level
+ * Super Admin bypasses all permission checks
+ * 
+ * @param {string} gateName - Name of the gate (e.g., "documents", "approvals")
+ * @param {number} requiredPriority - Minimum priority required (1=view, 2=edit, 3=delete)
+ * @returns {function} Express middleware function
+ */
+const authorize = (gateName, requiredPriority = 1) => {
   return async (req, res, next) => {
     try {
-      const permission = await Permission.findOne({ name: permissionName });
-      if (!permission) {
-        return res.status(404).json({ message: "Permission not found" });
+      if (!req.user) {
+        return next(new ErrorHandler("Unauthorized", 401));
       }
 
-      const roleAllowed = await RolePermission.findOne({
-        roleId: req.user.roleId,
-        permissionId: permission._id
-      });
+      // Super Admin has unrestricted access to everything
+      if (req.user.role.name === "SUPER_ADMIN") {
+        return next();
+      }
 
-      const userAllowed = await UserPermission.findOne({
-        userId: req.user._id,
-        permissionId: permission._id
-      });
+      // Check if user has the required permission
+      const hasPermission = req.permissions.some(
+        (perm) =>
+          perm.gate === gateName.toLowerCase() &&
+          perm.priority >= requiredPriority
+      );
 
-      if (!roleAllowed && !userAllowed) {
-        return res.status(403).json({ message: "Access Denied" });
+      if (!hasPermission) {
+        return next(
+          new ErrorHandler(
+            `Access denied. Requires ${gateName}:${requiredPriority}`,
+            403
+          )
+        );
       }
 
       next();
-    } catch {
-      res.status(500).json({ message: "Authorization error" });
+    } catch (error) {
+      return next(new ErrorHandler("Authorization check failed", 500));
     }
   };
 };
+
+module.exports = authorize;
