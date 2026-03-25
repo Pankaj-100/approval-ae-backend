@@ -1,9 +1,9 @@
-const workPermit = require("./workPermit.model");
+const WorkPermit = require("./workPermit.model");
 
 // create work permit
 exports.createWorkPermit = async (req, res) => {
   try {
-    const workPermit = await workPermit.create(req.body);
+    const workPermit = await WorkPermit.create(req.body);
 
     return res.status(201).json({
       success: true,
@@ -21,8 +21,7 @@ exports.createWorkPermit = async (req, res) => {
 // get all work permit
 exports.getAllWorkPermit = async (req, res) => {
   try {
-    const workPermit = await workPermit
-      .find({ isDeleted: false })
+    const workPermit = await WorkPermit.find({ isDeleted: false })
       .populate("floorId", "floorName")
       .populate("floorUnitId", "tenantName")
       .sort({ createdAt: -1 });
@@ -42,11 +41,10 @@ exports.getAllWorkPermit = async (req, res) => {
 // get work permit by id
 exports.getWorkPermitById = async (req, res) => {
   try {
-    const workPermit = await workPermit
-      .findOne({
-        _id: req.params.id,
-        isDeleted: false,
-      })
+    const workPermit = await WorkPermit.findOne({
+      _id: req.params.id,
+      isDeleted: false,
+    })
       .populate("floorId", "floorName")
       .populate("floorUnitId", "tenantName");
 
@@ -79,20 +77,28 @@ exports.updateWorkPermitFileStatus = async (req, res) => {
     const approvedBy = req.body.approvedBy;
     const rejectionReason = req.body.rejectionReason;
 
-    const workPermit = await workPermit.findById(id);
+    const workPermit = await WorkPermit.findById(id);
 
-    if (!workPermit) {
+    if (!workPermit || workPermit.isDeleted) {
       return res.status(404).json({
         success: false,
         message: "Work Permit not found",
       });
     }
 
+    if (!workPermit.documents[documnetType]) {
+      return res.status(404).json({
+        success: false,
+        message: "Inavlid document type",
+      });
+    }
+
     // update status
-    workPermit[documnetType].status = status;
-    workPermit[documnetType].approvedBy = approvedBy;
-    workPermit[documnetType].rejectionReason = rejectionReason;
-    workPermit[documnetType].approvedAt = new Date();
+    workPermit.documents[documnetType].status = status;
+    workPermit.documents[documnetType].approvedBy = approvedBy;
+    workPermit.documents[documnetType].rejectionReason = rejectionReason;
+    workPermit.documents[documnetType].approvedAt =
+      status === "APPROVED" ? new Date() : null;
 
     await workPermit.save();
 
@@ -115,12 +121,20 @@ exports.updateSingleWorkPermitFile = async (req, res) => {
     const { id } = req.params;
     const { documentType, file } = req.body;
 
-    const workPermit = await workPermit.findById(id);
+    const workPermit = await WorkPermit.findById(id);
 
-    if (!workPermit) {
+    if (!workPermit || workPermit.isDeleted) {
       return res.status(404).json({
         success: false,
         message: "Work Permit not found",
+      });
+    }
+
+    // validate document type
+    if (!workPermit.documents[documentType]) {
+      return res.status(404).json({
+        success: false,
+        message: "Inavlid document type",
       });
     }
 
@@ -128,10 +142,10 @@ exports.updateSingleWorkPermitFile = async (req, res) => {
     workPermit[documentType].file = file;
 
     // resest to default state
-    workPermit[documentType].status = "PENDING";
-    workPermit[documentType].approvedBy = null;
-    workPermit[documentType].rejectionReason = null;
-    workPermit[documentType].approvedAt = null;
+    workPermit.documents[documentType].status = "PENDING";
+    workPermit.documents[documentType].approvedBy = null;
+    workPermit.documents[documentType].rejectionReason = null;
+    workPermit.documents[documentType].approvedAt = null;
 
     await workPermit.save();
 
@@ -153,7 +167,7 @@ exports.deleteWorkPermit = async (req, res) => {
   const id = req.params.id;
 
   try {
-    const workPermit = await workPermit.findOneAndUpdate(
+    const workPermit = await WorkPermit.findOneAndUpdate(
       { _id: id, isDeleted: false },
       { isDeleted: true, deletedAt: new Date() },
       { new: true },

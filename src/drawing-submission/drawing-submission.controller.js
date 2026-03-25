@@ -33,7 +33,7 @@ exports.getAllDrawingSubmission = async (req, res) => {
       isDeleted: false,
     })
       .populate("floorId", "floorName")
-      .populate("floorUnitId", "tenatName")
+      .populate("floorUnitId", "tenantName")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -83,7 +83,7 @@ exports.updateFileStatus = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const documnetType = req.body.documentType;
+    const documentType = req.body.documentType;
     const fileType = req.body.fileType;
     const status = req.body.status;
     const approvedBy = req.body.approvedBy;
@@ -91,18 +91,33 @@ exports.updateFileStatus = async (req, res) => {
 
     const drawingSubmission = await DrawingSubmission.findById(id);
 
-    if (!drawingSubmission) {
+    if (!drawingSubmission || drawingSubmission.isDeleted) {
       return res.status(404).json({
         success: false,
         message: "Drawing Submission not found",
       });
     }
 
+    if (!drawingSubmission[documentType]) {
+      return res.status(404).json({
+        success: false,
+        message: "Inavlid document type",
+      });
+    }
+
+    if (!drawingSubmission[documentType][fileType]) {
+      return res.status(404).json({
+        success: false,
+        message: "Inavlid document type",
+      });
+    }
+
     // update status
-    drawingSubmission[documnetType][fileType].status = status;
-    drawingSubmission[documnetType][fileType].approvedBy = approvedBy;
-    drawingSubmission[documnetType][fileType].rejectionReason = rejectionReason;
-    drawingSubmission[documnetType][fileType].approvedAt = new Date();
+    drawingSubmission[documentType][fileType].status = status;
+    drawingSubmission[documentType][fileType].approvedBy = approvedBy;
+    drawingSubmission[documentType][fileType].rejectionReason = rejectionReason;
+    drawingSubmission[documentType][fileType].approvedAt =
+      status === "APPROVED" ? new Date() : null;
 
     await drawingSubmission.save();
 
@@ -127,10 +142,24 @@ exports.updateSingleDrawingSubmission = async (req, res) => {
 
     const drawingSubmission = await DrawingSubmission.findById(id);
 
-    if (!drawingSubmission) {
+    if (!drawingSubmission || drawingSubmission.isDeleted) {
       return res.status(404).json({
         success: false,
         message: "Drawing Submission not found",
+      });
+    }
+
+    if (!drawingSubmission[documentType]) {
+      return res.status(404).json({
+        success: false,
+        message: "Inavlid document type",
+      });
+    }
+
+    if (!drawingSubmission[documentType][fileType]) {
+      return res.status(404).json({
+        success: false,
+        message: "Inavlid document type",
       });
     }
 

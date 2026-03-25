@@ -4,19 +4,15 @@ const policySchema = new mongoose.Schema(
   {
     policyType: {
       type: String,
+      enum: ["Terms_Conditions", "Privacy_Policy", "Pricing_Policy"],
       required: true,
     },
 
     role: {
       type: String,
+      enum: ["Landlord", "Contractor", "Employees"],
       required: true,
     },
-
-    subRoles: [
-      {
-        type: String,
-      },
-    ],
 
     title: {
       type: String,
@@ -29,19 +25,9 @@ const policySchema = new mongoose.Schema(
       required: true,
     },
 
-    version: {
-      type: Number,
-      default: 1,
-    },
-
     isDeleted: {
       type: Boolean,
       default: false,
-    },
-
-    deletedAt: {
-      type: Date,
-      default: null,
     },
   },
   {

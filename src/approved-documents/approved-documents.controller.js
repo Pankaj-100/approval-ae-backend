@@ -2,10 +2,18 @@ const ApprovedDocument = require("./approved-documents.model");
 
 // create approved documents
 exports.createApprovedDocument = async (req, res) => {
-  const floorId = req.params.floorId;
-
-  req.body.floorId = floorId;
   try {
+    const floorId = req.params.floorId;
+
+    req.body.floorId = floorId;
+
+    if (!req.body.floorId) {
+      return res.status(400).json({
+        success: false,
+        message: "FloorId is required",
+      });
+    }
+
     const approvedDocument = await ApprovedDocument.create(req.body);
 
     return res.status(201).json({
@@ -78,7 +86,7 @@ exports.updateApprovedDocument = async (req, res) => {
 
   try {
     const approvedDocument = await ApprovedDocument.findOneAndUpdate(
-      { _id:id, isDeleted: false },
+      { _id: id, isDeleted: false },
       req.body,
       { new: true },
     ).populate({ path: "floorId", select: "floorName" });
@@ -109,7 +117,7 @@ exports.deleteApprovedDocument = async (req, res) => {
 
   try {
     const approvedDocument = await ApprovedDocument.findOneAndUpdate(
-      { _id:id, isDeleted: false },
+      { _id: id, isDeleted: false },
       { isDeleted: true },
       { new: true },
     ).populate({ path: "floorId", select: "floorName" });

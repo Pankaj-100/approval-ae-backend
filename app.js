@@ -7,13 +7,19 @@ const superAdminRoutes = require("./src/modules/superadmin/superadmin.routes");
 const roleRoutes = require("./src/modules/role/role.route");
 const contractorRoutes = require("./src/modules/contractor/contractor.routes");
 const lanlordRoutes = require("./src/modules/landlord/landlord.routes");
-
+const plotRoutes = require("./src/plot/plot.router");
+const workPermitRoutes = require("./src/work-permit/workPermit.router");
+const floorRoutes = require("./src/floor/floor.router");
+const floorUnitRoutes = require("./src/floor-unit/floor-unit.router");
+const contractorApplicationRoutes = require("./src/contractor-application/contractor-application.router");
+const policyRoutes = require("./src/policy-management/policy-management.router");
+const drawingSubmissionRoutes = require("./src/drawing-submission/drawing-submission.router");
+const approvedDocumentRoutes = require("./src/approved-documents/approved-documents.router");
+const inspectionRoutes = require("./src/inspection-detail/inspectionDetail.router");
 
 dotenv.config({ path: "./config/config.env" });
 
 const app = express();
-
-
 
 /* =========================
    MIDDLEWARES
@@ -36,6 +42,15 @@ app.use("/api/v1/superadmin", superAdminRoutes);
 app.use("/api/v1/roles", roleRoutes);
 app.use("/api/v1/contractor", contractorRoutes);
 app.use("/api/v1/landlord", lanlordRoutes);
+app.use("/api/v1/plot", plotRoutes);
+app.use("/api/v1/work-permit", workPermitRoutes);
+app.use("/api/v1/floor", floorRoutes);
+app.use("/api/v1/floor-unit", floorUnitRoutes);
+app.use("/api/v1/contractor-application", contractorApplicationRoutes);
+app.use("/api/v1/policy-management", policyRoutes);
+app.use("/api/v1/drawing-submission", drawingSubmissionRoutes);
+app.use("/api/v1/approved-documents", approvedDocumentRoutes);
+app.use("/api/v1/inspection-detail", inspectionRoutes);
 
 /* =========================
    HEALTH CHECK

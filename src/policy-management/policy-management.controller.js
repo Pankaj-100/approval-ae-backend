@@ -1,9 +1,34 @@
 const Policy = require("./policy-management.model");
-
 // create policy
 exports.createPolicy = async (req, res) => {
   try {
-    const policy = await Policy.create(req.body);
+    const { policyType, role, title, content } = req.body;
+
+    if (!policyType || !role || !title || !content) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    const existingPolicy = await Policy.findOne({
+      policyType,
+      role,
+      isDeleted: false,
+    });
+    if (existingPolicy) {
+      return res.status(400).json({
+        success: false,
+        message: "Policy already exists",
+      });
+    }
+
+    const policy = await Policy.create({
+      policyType,
+      role,
+      title,
+      content,
+    });
 
     return res.status(201).json({
       success: true,
@@ -21,26 +46,31 @@ exports.createPolicy = async (req, res) => {
 // get all policies
 exports.getAllPolicies = async (req, res) => {
   try {
-    const policies = await Policy.find({ isDeleted: false });
-
+    const policies = await Policy.find({ isDeleted: false }).sort({
+      createdAt: -1,
+    });
     return res.status(200).json({
       success: true,
       data: policies,
     });
   } catch (error) {
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
       message: error.message,
     });
   }
 };
 
-// get policy by id
-exports.getPolicyById = async (req, res) => {
-  const id = req.params.id;
-
+// get single policy
+exports.getSinglePolicy = async (req, res) => {
   try {
-    const policy = await Policy.findOne({ _id: id, isDeleted: false });
+    const { policyType, role } = req.query;
+
+    const policy = await Policy.findOne({
+      policyType,
+      role,
+      isDeleted: false,
+    });
 
     if (!policy) {
       return res.status(404).json({
@@ -51,27 +81,27 @@ exports.getPolicyById = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      message: "Policy found",
       data: policy,
     });
   } catch (error) {
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
       message: error.message,
     });
   }
 };
 
-// update policy
+// update api policy
 exports.updatePolicy = async (req, res) => {
-  const id = req.params.id;
-
   try {
+    const { id } = req.params;
+    const { title, content } = req.body;
+
     const policy = await Policy.findOneAndUpdate(
       { _id: id, isDeleted: false },
-      req.body,
-      {
-        new: true,
-      },
+      { title, content },
+      { new: true },
     );
 
     if (!policy) {
@@ -87,7 +117,7 @@ exports.updatePolicy = async (req, res) => {
       data: policy,
     });
   } catch (error) {
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
       message: error.message,
     });
@@ -96,15 +126,13 @@ exports.updatePolicy = async (req, res) => {
 
 // delete policy
 exports.deletePolicy = async (req, res) => {
-  const id = req.params.id;
-
   try {
-    const policy = await Policy.findByIdAndUpdate(
-      id,
+    const { id } = req.params;
+
+    const policy = await Policy.findOneAndUpdate(
+      { _id: id, isDeleted: false },
       { isDeleted: true },
-      {
-        new: true,
-      },
+      { new: true },
     );
 
     if (!policy) {
@@ -117,9 +145,10 @@ exports.deletePolicy = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Policy deleted successfully",
+      data: policy,
     });
   } catch (error) {
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
       message: error.message,
     });

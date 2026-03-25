@@ -1,19 +1,19 @@
 const express = require("express");
 
 const {
-  getAllPolicies,
-  getPolicyById,
   createPolicy,
+  getAllPolicies,
+  getSinglePolicy,
   updatePolicy,
   deletePolicy,
 } = require("./policy-management.controller");
 
 const route = express.Router();
 
-route.get("/", getAllPolicies);
-route.get("/:id", getPolicyById);
-route.post("/", createPolicy);
-route.put("/:id", updatePolicy);
-route.delete("/:id", deletePolicy);
+route.post("/content", createPolicy);
+route.get("/content", getAllPolicies);
+route.get("/single-content", getSinglePolicy);
+route.put("/content/:id", updatePolicy);
+route.delete("/content/:id", deletePolicy);
 
 module.exports = route;

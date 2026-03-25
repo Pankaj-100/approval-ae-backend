@@ -19,7 +19,7 @@ route.get("/", getAllDrawingSubmission);
 route.get("/:id", getDrawingSubmissionById);
 route.post("/", createDrawingSubmission);
 route.put("/:id", updateDrawingSubmission);
-route.put("./single-file/:id", updateSingleDrawingSubmission);
+route.put("/single-file/:id", updateSingleDrawingSubmission);
 route.put("/approve/:id", updateFileStatus);
 route.delete("/:id", deleteDrawingSubmission);
 
