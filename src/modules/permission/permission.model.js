@@ -2,22 +2,41 @@ const mongoose = require("mongoose");
 
 const permissionSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, unique: true },
-    description: String,
+    name: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      default: "",
+    },
+    gate: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Gate",
+      required: true,
+    },
     priority: {
       type: Number,
-      enum: [0, 1, 2, 3, 4],
-      default: 0
+      required: true,
+      min: 1,
+      default: 1,
+      // Priority levels:
+      // 1 = view/read
+      // 2 = edit/update
+      // 3 = delete
+      // Higher number = more access
     },
-    gates: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Gate"
-      }
-    ],
-    isDeleted: { type: Boolean, default: false }
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
+
+// Compound index to ensure unique permission per gate
+permissionSchema.index({ gate: 1, name: 1 }, { unique: true });
 
 module.exports = mongoose.model("Permission", permissionSchema);

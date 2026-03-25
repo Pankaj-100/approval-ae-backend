@@ -8,6 +8,7 @@ const Role = require("../role/role.model");
 const ErrorHandler = require("../../../utils/errorHandler");
 const catchAsync = require("../../../utils/catchAsyncError");
 const sendEmail = require("../../../utils/sendEmail");
+const { fetchUserPermissions } = require("../../../utils/rbacHelper");
 const { generateAccessToken, generateRefreshToken } = require("../../../utils/token");
 const { s3Uploadv2 } = require("../../../utils/s3");
 
@@ -243,6 +244,9 @@ exports.login = catchAsync(async (req, res, next) => {
     });
   }
 
+  // Fetch RBAC permissions
+  const permissions = await fetchUserPermissions(user._id, user.role);
+
   const accessToken = generateAccessToken(user._id);
   const refreshToken = generateRefreshToken(user._id);
 
@@ -253,6 +257,7 @@ exports.login = catchAsync(async (req, res, next) => {
     success: true,
     token: accessToken,
     refreshToken,
+    permissions,
     user: {
       id: user._id,
       name: user.name,
