@@ -9,7 +9,10 @@ const ErrorHandler = require("../../../utils/errorHandler");
 const catchAsync = require("../../../utils/catchAsyncError");
 const sendEmail = require("../../../utils/sendEmail");
 const { fetchUserPermissions } = require("../../../utils/rbacHelper");
-const { generateAccessToken, generateRefreshToken } = require("../../../utils/token");
+const {
+  generateAccessToken,
+  generateRefreshToken,
+} = require("../../../utils/token");
 const { s3Uploadv2 } = require("../../../utils/s3");
 
 // Set role name constant for this controller
@@ -44,19 +47,20 @@ exports.register = catchAsync(async (req, res, next) => {
   }
 
   // Check if user with this email AND landlord role already exists
-  const existing = await User.findOne({ 
-    email, 
+  const existing = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
-  
+
   if (existing) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} already exists`, 409));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} already exists`, 409),
+    );
   }
 
   // const otp = Math.floor(1000 + Math.random() * 9000).toString();
   const otp = "1234";
-
 
   const user = await User.create({
     name: username,
@@ -70,11 +74,11 @@ exports.register = catchAsync(async (req, res, next) => {
   });
 
   await sendEmail(
-    user.name, 
-    user.email, 
+    user.name,
+    user.email,
     `<h3>Welcome to ${ROLE_NAME} Portal!</h3>
      <p>Your email verification OTP is: <b>${otp}</b></p>
-     <p>This OTP will expire in 10 minutes.</p>`
+     <p>This OTP will expire in 10 minutes.</p>`,
   );
 
   res.status(201).json({
@@ -82,7 +86,7 @@ exports.register = catchAsync(async (req, res, next) => {
     user_id: user._id,
     message: "Registration successful. OTP sent to email.",
     verification_required: true,
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -103,14 +107,16 @@ exports.verifyEmail = catchAsync(async (req, res, next) => {
   }
 
   // Find user with this email AND specific role
-  const user = await User.findOne({ 
-    email, 
+  const user = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404),
+    );
   }
 
   // Check if already verified
@@ -134,7 +140,7 @@ exports.verifyEmail = catchAsync(async (req, res, next) => {
     message: `${ROLE_NAME} email verified successfully`,
     account_status: "ACTIVE",
     role: ROLE_NAME,
-    isVerified: true
+    isVerified: true,
   });
 });
 
@@ -155,14 +161,16 @@ exports.resendVerificationOtp = catchAsync(async (req, res, next) => {
   }
 
   // Find user with this email AND specific role
-  const user = await User.findOne({ 
-    email, 
+  const user = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404),
+    );
   }
 
   // Check if already verified
@@ -173,26 +181,25 @@ exports.resendVerificationOtp = catchAsync(async (req, res, next) => {
   // const otp = Math.floor(1000 + Math.random() * 9000).toString();
   const otp = "1234";
 
-
   user.otp = otp;
   user.otpExpire = Date.now() + 10 * 60 * 1000;
 
   await user.save();
 
   await sendEmail(
-    user.name, 
-    user.email, 
+    user.name,
+    user.email,
     `<h3>${ROLE_NAME} Account - Email Verification OTP (Resent)</h3>
      <p>Your new OTP is: <b>${otp}</b></p>
      <p>This OTP will expire in 10 minutes.</p>
-     <p>If you didn't request this, please ignore this email.</p>`
+     <p>If you didn't request this, please ignore this email.</p>`,
   );
 
-  res.json({ 
+  res.json({
     success: true,
     message: `Verification OTP resent successfully to ${email}`,
     verification_required: true,
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -221,26 +228,26 @@ exports.login = catchAsync(async (req, res, next) => {
 
   // If email not verified → send OTP
   if (!user.isVerified) {
-      // const otp = Math.floor(1000 + Math.random() * 9000).toString();
-          const otp = "1234";
+    // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otp = "1234";
 
     user.otp = otp;
     user.otpExpire = Date.now() + 10 * 60 * 1000;
     await user.save();
 
     await sendEmail(
-      user.name, 
-      user.email, 
+      user.name,
+      user.email,
       `<h3>${ROLE_NAME} Account - Email Verification</h3>
        <p>Your OTP is: <b>${otp}</b></p>
-       <p>This OTP will expire in 10 minutes.</p>`
+       <p>This OTP will expire in 10 minutes.</p>`,
     );
 
     return res.status(200).json({
       success: false,
       message: "Email not verified. OTP sent.",
       verification_required: true,
-      role: ROLE_NAME
+      role: ROLE_NAME,
     });
   }
 
@@ -266,7 +273,7 @@ exports.login = catchAsync(async (req, res, next) => {
       isVerified: user.isVerified,
       company_name: user.company_name,
       mobile_number: user.mobile_number,
-      profile_image_url: user.profile_image_url
+      profile_image_url: user.profile_image_url,
     },
   });
 });
@@ -286,14 +293,16 @@ exports.sendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Role not found", 404));
   }
 
-  const user = await User.findOne({ 
-    email, 
+  const user = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404),
+    );
   }
 
   // const otp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -305,18 +314,18 @@ exports.sendForgotPasswordOtp = catchAsync(async (req, res, next) => {
   await user.save();
 
   await sendEmail(
-    user.name, 
-    user.email, 
+    user.name,
+    user.email,
     `<h3>${ROLE_NAME} Account - Password Reset OTP</h3>
      <p>Your OTP for password reset is: <b>${otp}</b></p>
      <p>This OTP will expire in 10 minutes.</p>
-     <p>If you didn't request this, please ignore this email.</p>`
+     <p>If you didn't request this, please ignore this email.</p>`,
   );
 
-  res.json({ 
+  res.json({
     success: true,
     message: `Password reset OTP sent to ${email} for ${ROLE_NAME} account`,
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -335,14 +344,16 @@ exports.resendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Role not found", 404));
   }
 
-  const user = await User.findOne({ 
-    email, 
+  const user = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404),
+    );
   }
 
   // const otp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -353,18 +364,18 @@ exports.resendForgotPasswordOtp = catchAsync(async (req, res, next) => {
   await user.save();
 
   await sendEmail(
-    user.name, 
-    user.email, 
+    user.name,
+    user.email,
     `<h3>${ROLE_NAME} Account - Password Reset OTP (Resent)</h3>
      <p>Your new OTP for password reset is: <b>${otp}</b></p>
      <p>This OTP will expire in 10 minutes.</p>
-     <p>If you didn't request this, please ignore this email.</p>`
+     <p>If you didn't request this, please ignore this email.</p>`,
   );
 
-  res.json({ 
+  res.json({
     success: true,
     message: `Password reset OTP resent successfully to ${email} for ${ROLE_NAME} account`,
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -383,14 +394,16 @@ exports.verifyForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Role not found", 404));
   }
 
-  const user = await User.findOne({ 
-    email, 
+  const user = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404),
+    );
   }
 
   if (!user.otp || user.otp !== otp || user.otpExpire < Date.now()) {
@@ -406,11 +419,11 @@ exports.verifyForgotPasswordOtp = catchAsync(async (req, res, next) => {
 
   await user.save();
 
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message: "OTP verified successfully",
     resetToken,
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -421,7 +434,9 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
   const { resetToken, newPassword } = req.body;
 
   if (!resetToken || !newPassword) {
-    return next(new ErrorHandler("Reset token and new password are required", 400));
+    return next(
+      new ErrorHandler("Reset token and new password are required", 400),
+    );
   }
 
   const role = await Role.findOne({ name: ROLE_NAME });
@@ -433,7 +448,7 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
     resetPasswordToken: resetToken,
     resetPasswordExpire: { $gt: Date.now() },
     role: role._id,
-    isDeleted: false
+    isDeleted: false,
   });
 
   if (!user) {
@@ -452,13 +467,13 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
     user.email,
     `<h3>${ROLE_NAME} Account - Password Reset Successful</h3>
      <p>Your password has been reset successfully.</p>
-     <p>If you didn't perform this action, please contact support immediately.</p>`
+     <p>If you didn't perform this action, please contact support immediately.</p>`,
   );
 
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message: "Password reset successfully",
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -479,8 +494,8 @@ exports.getProfile = catchAsync(async (req, res) => {
       company_name: user.company_name,
       profile_image_url: user.profile_image_url,
       role: ROLE_NAME,
-      isVerified: user.isVerified
-    }
+      isVerified: user.isVerified,
+    },
   });
 });
 
@@ -514,11 +529,11 @@ exports.updateProfile = catchAsync(async (req, res) => {
   // Send OTP after save if email changed
   if (emailChanged) {
     await sendEmail(
-      user.name, 
-      user.email, 
+      user.name,
+      user.email,
       `<h3>${ROLE_NAME} Account - Email Change Verification</h3>
        <p>Your OTP to verify your new email is: <b>${user.otp}</b></p>
-       <p>This OTP will expire in 10 minutes.</p>`
+       <p>This OTP will expire in 10 minutes.</p>`,
     );
   }
 
@@ -533,8 +548,8 @@ exports.updateProfile = catchAsync(async (req, res) => {
       mobile_number: user.mobile_number,
       company_name: user.company_name,
       address: user.address,
-      role: ROLE_NAME
-    }
+      role: ROLE_NAME,
+    },
   });
 });
 
@@ -551,10 +566,10 @@ exports.uploadPhoto = catchAsync(async (req, res, next) => {
   req.user.profile_image_url = result.Location;
   await req.user.save();
 
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     avatarUrl: result.Location,
-    message: "Photo uploaded successfully"
+    message: "Photo uploaded successfully",
   });
 });
 
@@ -565,9 +580,22 @@ exports.removePhoto = catchAsync(async (req, res) => {
   req.user.profile_image_url = null;
   await req.user.save();
 
-  res.json({ 
+  res.json({
     success: true,
-    message: "Photo removed successfully" 
+    message: "Photo removed successfully",
+  });
+});
+
+/* =====================================
+   GET PROFILE IMAGE
+   Get current profile image URL
+===================================== */
+exports.getProfileImage = catchAsync(async (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      profile_image_url: req.user.profile_image_url || null,
+    },
   });
 });
 
@@ -598,12 +626,12 @@ exports.changePassword = catchAsync(async (req, res, next) => {
     user.email,
     `<h3>${ROLE_NAME} Account - Password Changed</h3>
      <p>Your password has been changed successfully.</p>
-     <p>If you didn't perform this action, please contact support immediately.</p>`
+     <p>If you didn't perform this action, please contact support immediately.</p>`,
   );
 
-  res.json({ 
+  res.json({
     success: true,
-    message: "Password updated successfully" 
+    message: "Password updated successfully",
   });
 });
 
@@ -624,9 +652,9 @@ exports.deleteAccount = catchAsync(async (req, res, next) => {
   user.refreshToken = null;
   await user.save();
 
-  res.json({ 
+  res.json({
     success: true,
-    message: "Account deleted successfully" 
+    message: "Account deleted successfully",
   });
 });
 
@@ -636,9 +664,9 @@ exports.deleteAccount = catchAsync(async (req, res, next) => {
 exports.logout = catchAsync(async (req, res) => {
   req.user.refreshToken = null;
   await req.user.save();
-  
-  res.json({ 
+
+  res.json({
     success: true,
-    message: "Logged out successfully" 
+    message: "Logged out successfully",
   });
 });

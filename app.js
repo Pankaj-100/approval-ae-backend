@@ -22,6 +22,7 @@ const policyRoutes = require("./src/policy-management/policy-management.router")
 const drawingSubmissionRoutes = require("./src/drawing-submission/drawing-submission.router");
 const approvedDocumentRoutes = require("./src/approved-documents/approved-documents.router");
 const inspectionRoutes = require("./src/inspection-detail/inspectionDetail.router");
+const userManagementRoutes = require("./src/user-management/userManagement.router");
 dotenv.config({ path: "./config/config.env" });
 
 const app = express();
@@ -66,6 +67,7 @@ app.use("/api/v1/policy-management", policyRoutes);
 app.use("/api/v1/drawing-submission", drawingSubmissionRoutes);
 app.use("/api/v1/approved-documents", approvedDocumentRoutes);
 app.use("/api/v1/inspection-detail", inspectionRoutes);
+app.use("/api/v1/user-management", userManagementRoutes);
 
 /* =========================
    HEALTH CHECK
