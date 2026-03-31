@@ -2,6 +2,21 @@ const mongoose = require("mongoose");
 
 const plotDetailsSchema = new mongoose.Schema(
   {
+    landlordName: {
+      type: String,
+      required: true,
+    },
+
+    landlordEmail: {
+      type: String,
+      required: true,
+    },
+
+    landlordMobile: {
+      type: String,
+      required: true,
+    },
+
     plotNumber: {
       type: Number,
       required: true,
