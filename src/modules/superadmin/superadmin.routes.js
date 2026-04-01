@@ -13,6 +13,7 @@ const {
   logout,
   createUser,
   getAllUsers,
+  getProfileImage,
 } = require("./superadmin.controller");
 
 const { auth } = require("../../../middleware/auth");
@@ -37,6 +38,7 @@ router.get("/profile", auth, getProfile);
 router.put("/profile", auth, updateProfile);
 router.post("/profile/upload-photo", auth, upload.single("file"), uploadPhoto);
 router.delete("/profile/remove-photo", auth, removePhoto);
+router.get("/profile/image", auth, getProfileImage);
 router.put("/change-password", auth, changePassword);
 
 module.exports = router;

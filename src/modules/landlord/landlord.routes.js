@@ -35,7 +35,7 @@ router.post(
   controller.uploadPhoto,
 );
 router.delete("/profile/remove-photo", auth, controller.removePhoto);
-// router.get("/profile/image", auth, controller.getProfileImage);
+router.get("/profile/image", auth, controller.getProfileImage);
 router.put("/change-password", auth, controller.changePassword);
 router.delete("/delete-account", auth, controller.deleteAccount);
 

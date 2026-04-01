@@ -590,14 +590,14 @@ exports.removePhoto = catchAsync(async (req, res) => {
    GET PROFILE IMAGE
    Get current profile image URL
 ===================================== */
-// exports.getProfileImage = catchAsync(async (req, res) => {
-//   res.json({
-//     success: true,
-//     data: {
-//       profile_image_url: req.user.profile_image_url || null,
-//     },
-//   });
-// });
+exports.getProfileImage = catchAsync(async (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      profile_image_url: req.user.profile_image_url || null,
+    },
+  });
+});
 
 /* =====================================
    CHANGE PASSWORD

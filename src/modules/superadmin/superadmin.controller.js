@@ -9,7 +9,10 @@ const ErrorHandler = require("../../../utils/errorHandler");
 const catchAsync = require("../../../utils/catchAsyncError");
 const sendEmail = require("../../../utils/sendEmail");
 const { fetchUserPermissions } = require("../../../utils/rbacHelper");
-const { generateAccessToken, generateRefreshToken } = require("../../../utils/token");
+const {
+  generateAccessToken,
+  generateRefreshToken,
+} = require("../../../utils/token");
 const { s3Uploadv2 } = require("../../../utils/s3");
 
 // Set role name constant for this controller
@@ -84,7 +87,9 @@ exports.sendForgotPasswordOtp = catchAsync(async (req, res, next) => {
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404),
+    );
   }
 
   // const otp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -99,7 +104,7 @@ exports.sendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     `<h3>${ROLE_NAME} Account - Password Reset OTP</h3>
      <p>Your OTP for password reset is: <b>${otp}</b></p>
      <p>This OTP will expire in 10 minutes.</p>
-     <p>If you didn't request this, please ignore this email.</p>`
+     <p>If you didn't request this, please ignore this email.</p>`,
   );
 
   res.json({
@@ -131,11 +136,13 @@ exports.resendForgotPasswordOtp = catchAsync(async (req, res, next) => {
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404),
+    );
   }
 
   // const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    const otp = "1234";
+  const otp = "1234";
   user.otp = otp;
   user.otpExpire = Date.now() + 10 * 60 * 1000;
   await user.save();
@@ -146,7 +153,7 @@ exports.resendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     `<h3>${ROLE_NAME} Account - Password Reset OTP (Resent)</h3>
      <p>Your new OTP for password reset is: <b>${otp}</b></p>
      <p>This OTP will expire in 10 minutes.</p>
-     <p>If you didn't request this, please ignore this email.</p>`
+     <p>If you didn't request this, please ignore this email.</p>`,
   );
 
   res.json({
@@ -205,7 +212,9 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
   const { resetToken, newPassword } = req.body;
 
   if (!resetToken || !newPassword) {
-    return next(new ErrorHandler("Reset token and new password are required", 400));
+    return next(
+      new ErrorHandler("Reset token and new password are required", 400),
+    );
   }
 
   const role = await Role.findOne({ name: ROLE_NAME });
@@ -236,7 +245,7 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
     user.email,
     `<h3>${ROLE_NAME} Account - Password Reset Successful</h3>
      <p>Your password has been reset successfully.</p>
-     <p>If you didn't perform this action, please contact support immediately.</p>`
+     <p>If you didn't perform this action, please contact support immediately.</p>`,
   );
 
   res.json({
@@ -281,9 +290,9 @@ exports.updateProfile = catchAsync(async (req, res) => {
     user.email = email;
     user.isVerified = false;
 
-      // const otp = Math.floor(1000 + Math.random() * 9000).toString();
-      const otp = "1234";
-      user.otp = otp;
+    // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otp = "1234";
+    user.otp = otp;
     user.otpExpire = Date.now() + 10 * 60 * 1000;
   }
 
@@ -300,7 +309,7 @@ exports.updateProfile = catchAsync(async (req, res) => {
       user.email,
       `<h3>${ROLE_NAME} Account - Email Change Verification</h3>
        <p>Your OTP to verify your new email is: <b>${user.otp}</b></p>
-       <p>This OTP will expire in 10 minutes.</p>`
+       <p>This OTP will expire in 10 minutes.</p>`,
     );
   }
 
@@ -352,6 +361,19 @@ exports.removePhoto = catchAsync(async (req, res) => {
   });
 });
 
+/* =====================================
+   GET PROFILE IMAGE
+   Get current profile image URL
+===================================== */
+exports.getProfileImage = catchAsync(async (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      profile_image_url: req.user.profile_image_url || null,
+    },
+  });
+});
+
 /* ===============================
    CHANGE PASSWORD
 =================================*/
@@ -379,7 +401,7 @@ exports.changePassword = catchAsync(async (req, res, next) => {
     user.email,
     `<h3>${ROLE_NAME} Account - Password Changed</h3>
      <p>Your password has been changed successfully.</p>
-     <p>If you didn't perform this action, please contact support immediately.</p>`
+     <p>If you didn't perform this action, please contact support immediately.</p>`,
   );
 
   res.json({
@@ -442,7 +464,9 @@ exports.createUser = catchAsync(async (req, res, next) => {
   });
 
   if (existingUser) {
-    return next(new ErrorHandler(`${role.name} with email ${email} already exists`, 409));
+    return next(
+      new ErrorHandler(`${role.name} with email ${email} already exists`, 409),
+    );
   }
 
   // Generate temporary password
@@ -462,7 +486,9 @@ exports.createUser = catchAsync(async (req, res, next) => {
   // Add contractor-specific fields if role is CONTRACTOR
   if (role.name === "CONTRACTOR") {
     if (!company_name) {
-      return next(new ErrorHandler("Company name is required for CONTRACTOR", 400));
+      return next(
+        new ErrorHandler("Company name is required for CONTRACTOR", 400),
+      );
     }
     userData.company_name = company_name;
     userData.trade_license_number = trade_license_number;
@@ -483,12 +509,16 @@ exports.createUser = catchAsync(async (req, res, next) => {
      <p><strong>Email:</strong> ${email}</p>
      <p><strong>Temporary Password:</strong> ${tempPassword}</p>
      <p><strong>Role:</strong> ${role.name}</p>
-     ${role.name === "CONTRACTOR" ? `
+     ${
+       role.name === "CONTRACTOR"
+         ? `
      <p><strong>Company:</strong> ${company_name}</p>
      <p>Please login and upload your required documents (Trade License and DM Prequalification).</p>
-     ` : ''}
+     `
+         : ""
+     }
      <p>Please login and change your password.</p>
-     <p><a href="${process.env.FRONTEND_URL}/login">Login here</a></p>`
+     <p><a href="${process.env.FRONTEND_URL}/login">Login here</a></p>`,
   );
 
   res.status(201).json({
@@ -513,7 +543,7 @@ exports.getAllUsers = catchAsync(async (req, res, next) => {
   const { role_name, page = 1, limit = 10 } = req.query;
 
   const query = { isDeleted: false };
-  
+
   if (role_name) {
     const role = await Role.findOne({ name: role_name.toUpperCase() });
     if (role) {
@@ -522,16 +552,16 @@ exports.getAllUsers = catchAsync(async (req, res, next) => {
   }
 
   const users = await User.find(query)
-    .populate('role', 'name')
+    .populate("role", "name")
     .skip((page - 1) * limit)
     .limit(parseInt(limit))
-    .select('-password -refreshToken -otp -resetPasswordToken');
+    .select("-password -refreshToken -otp -resetPasswordToken");
 
   const total = await User.countDocuments(query);
 
   res.json({
     success: true,
-    data: users.map(user => ({
+    data: users.map((user) => ({
       id: user._id,
       name: user.name,
       email: user.email,

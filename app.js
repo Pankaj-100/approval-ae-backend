@@ -1,7 +1,7 @@
+require("dotenv").config({ path: "./config/config.env" });
 const express = require("express");
 const cors = require("cors");
 const errorMiddleware = require("./middleware/error");
-const dotenv = require("dotenv");
 
 // RBAC Routes
 const roleRoutes = require("./src/modules/role/role.route");
@@ -23,7 +23,6 @@ const drawingSubmissionRoutes = require("./src/drawing-submission/drawing-submis
 const approvedDocumentRoutes = require("./src/approved-documents/approved-documents.router");
 const inspectionRoutes = require("./src/inspection-detail/inspectionDetail.router");
 const userManagementRoutes = require("./src/user-management/userManagement.router");
-dotenv.config({ path: "./config/config.env" });
 
 const app = express();
 
