@@ -1,11 +1,50 @@
 const PlotDetails = require("./plot.model");
 const { s3Uploadv2 } = require("../../utils/s3");
+const User = require("../modules/user/user.model");
+const Role = require("../modules/role/role.model");
 
 const awsUrl = process.env.AWS_BASE_URL;
 
-// create plot
 exports.createPlot = async (req, res) => {
   try {
+    const { landlordId } = req.body;
+
+    if (!landlordId) {
+      return res.status(400).json({
+        success: false,
+        message: "landlordId is required",
+      });
+    }
+
+    const user = await User.findById(landlordId).lean();
+
+    if (!user || user.isDeleted) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid landlord",
+      });
+    }
+
+    const role = await Role.findOne({ name: "LANDLORD" });
+
+    if (!role) {
+      return res.status(400).json({
+        success: false,
+        message: "Role not found",
+      });
+    }
+
+    if (user.role.toString() !== role._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "User is not a landlord",
+      });
+    }
+
+    req.body.landlordName = user.name;
+    req.body.landlordEmail = user.email;
+    req.body.landlordMobile = user.mobile_number;
+
     const plot = await PlotDetails.create(req.body);
 
     return res.status(201).json({

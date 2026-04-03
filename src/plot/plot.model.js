@@ -7,6 +7,12 @@ const plotDetailsSchema = new mongoose.Schema(
       required: true,
     },
 
+    landlordId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
     landlordEmail: {
       type: String,
       required: true,
