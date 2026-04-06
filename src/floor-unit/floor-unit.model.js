@@ -16,7 +16,6 @@ const unitSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      unique: true,
     },
 
     tenantName: {
@@ -55,5 +54,6 @@ const unitSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+unitSchema.index({ floorId: 1, unitId: 1 }, { unique: true });
 
 module.exports = mongoose.model("Unit", unitSchema);

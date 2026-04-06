@@ -1,5 +1,9 @@
-const UserManagement = require("./userManagement.model");
+const User = require("../modules/user/user.model");
+const Role = require("../modules/role/role.model");
 
+// =========================
+// CREATE USER (SUPERADMIN)
+// =========================
 exports.createUser = async (req, res) => {
   try {
     const { user_type, name, email, mobile } = req.body;
@@ -8,12 +12,27 @@ exports.createUser = async (req, res) => {
     if (!user_type || !name || !email || !mobile) {
       return res.status(400).json({
         success: false,
-        message: "Validation Error",
+        message: "All fields are required",
       });
     }
 
-    //Check duplicate email
-    const existingUser = await UserManagement.findOne({ email });
+    //Role find
+    const formattedType = user_type.toUpperCase().replace(/\s+/g, "_");
+    const role = await Role.findOne({ name: formattedType });
+
+    if (!role) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user type",
+      });
+    }
+
+    //Check duplicate
+    const existingUser = await User.findOne({
+      $or: [{ email }, { mobile_number: mobile }],
+      role: role._id,
+      isDeleted: false,
+    });
 
     if (existingUser) {
       return res.status(400).json({
@@ -23,35 +42,39 @@ exports.createUser = async (req, res) => {
     }
 
     //Create user
-    await UserManagement.create({
-      user_type: user_type.toUpperCase(),
+    const newUser = await User.create({
       name,
       email,
-      mobile,
+      mobile_number: mobile,
+      role: role._id,
+      password: "1234", // dummy password
+      isVerified: true,
     });
 
     return res.status(201).json({
       success: true,
       message: "User created successfully",
+      data: {
+        user_id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        role: user_type,
+      },
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      message: error.message,
     });
   }
 };
 
-// get users list
+// =========================
+// GET USERS LIST
+// =========================
 exports.getUsers = async (req, res) => {
   try {
-    let {
-      page = 1,
-      per_page = 10,
-      search,
-      user_type,
-      verified_status,
-    } = req.query;
+    let { page = 1, per_page = 10, search, role } = req.query;
 
     page = parseInt(page);
     per_page = parseInt(per_page);
@@ -66,41 +89,36 @@ exports.getUsers = async (req, res) => {
       ];
     }
 
-    //Filter user_type
-    if (user_type) {
-      filter.user_type = new RegExp(`^${user_type}$`, "i"); // case-insensitive
+    //Role filter
+    if (role) {
+      const roleData = await Role.findOne({ name: role.toUpperCase() });
+      if (roleData) {
+        filter.role = roleData._id;
+      }
     }
 
-    //Filter verified_status
-    if (verified_status) {
-      filter.verified_status = verified_status.toUpperCase();
-    }
+    const total_records = await User.countDocuments(filter);
 
-    //Total count
-    const total_records = await UserManagement.countDocuments(filter);
-
-    //Fetch users
-    const users = await UserManagement.find(filter)
+    const users = await User.find(filter)
+      .populate("role", "name")
       .skip((page - 1) * per_page)
       .limit(per_page)
       .sort({ createdAt: -1 });
 
-    //Format response
     const formattedUsers = users.map((u) => ({
       user_id: u._id,
-      user_code: "HT" + u._id.toString().slice(-5), // dummy code
+      user_code: "HT" + u._id.toString().slice(-5),
       name: u.name,
-      user_type: u.user_type,
       email: u.email,
-      mobile: u.mobile,
-      verified_status: u.verified_status,
-      is_verified: u.verified_status === "YES",
+      mobile: u.mobile_number,
+      role: u.role?.name,
+      isVerified: u.isVerified,
     }));
 
     const total_pages = Math.ceil(total_records / per_page);
 
     return res.json({
-      status: true,
+      success: true,
       data: {
         users: formattedUsers,
         pagination: {
@@ -116,17 +134,19 @@ exports.getUsers = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      message: error.message,
     });
   }
 };
 
-// delete user
+// =========================
+// DELETE USER
+// =========================
 exports.deleteUser = async (req, res) => {
   try {
     const { user_id } = req.params;
 
-    const user = await UserManagement.findById(user_id);
+    const user = await User.findById(user_id);
 
     if (!user || user.isDeleted) {
       return res.status(404).json({
@@ -135,19 +155,18 @@ exports.deleteUser = async (req, res) => {
       });
     }
 
-    //delete
+    //Soft delete
     user.isDeleted = true;
-    user.deletedAt = new Date();
     await user.save();
 
     return res.json({
-      status: true,
+      success: true,
       message: "User deleted successfully",
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      message: error.message,
     });
   }
 };

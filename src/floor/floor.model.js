@@ -55,5 +55,6 @@ const floorDetailsSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
+floorDetailsSchema.index({ plotId: 1, floorName: 1 }, { unique: true });
 
 module.exports = mongoose.model("FloorDetails", floorDetailsSchema);
