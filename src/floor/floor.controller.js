@@ -1,3 +1,4 @@
+const catchAsyncError = require("../../utils/catchAsyncError");
 const FloorDetails = require("./floor.model");
 
 // create plot
@@ -19,6 +20,21 @@ exports.createFloor = async (req, res) => {
 };
 
 // get all floors by plot id
+exports.getFloorsByBuildingId = catchAsyncError(async(req, res) => {
+  const {buildingId} = req.params;
+
+    const floors = await FloorDetails.find({ buildingId, isDeleted: false }).sort({
+      createdAt: -1,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: floors,
+    });
+  
+});
+
+
 exports.getFloorsByPlotId = async (req, res) => {
   const plotId = req.params.plotId;
   try {

@@ -2,10 +2,7 @@ const mongoose = require("mongoose");
 
 const plotDetailsSchema = new mongoose.Schema(
   {
-    landlordName: {
-      type: String,
-      required: true,
-    },
+  
 
     landlordId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -13,37 +10,28 @@ const plotDetailsSchema = new mongoose.Schema(
       required: true,
     },
 
-    landlordEmail: {
-      type: String,
-      required: true,
-    },
-
-    landlordMobile: {
-      type: String,
-      required: true,
-    },
 
     plotNumber: {
       type: Number,
       required: true,
     },
 
-    buildingName: {
-      type: String,
-      required: true,
-    },
+    // buildingName: {
+    //   type: String,
+    //   required: true,
+    // },
 
-    buildingSqft: {
-      type: Number,
-      required: true,
-    },
+    // buildingSqft: {
+    //   type: Number,
+    //   required: true,
+    // },
 
-    buildingUsage: [
-      {
-        type: String,
-        required: true,
-      },
-    ],
+    // buildingUsage: [
+    //   {
+    //     type: String,
+    //     required: true,
+    //   },
+    // ],
 
     documents: {
       siteAffectionPlan: {

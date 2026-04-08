@@ -8,6 +8,12 @@ const floorDetailsSchema = new mongoose.Schema(
       required: true,
     },
 
+      buildingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BuildingDetails",
+      required: true,
+    },
+
     floorName: {
       type: String,
       required: true,

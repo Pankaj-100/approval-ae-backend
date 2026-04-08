@@ -47,9 +47,6 @@ exports.createProject = catchAsync(async (req, res, next) => {
     finalLandlord = user;
   }
 
-  // =========================
-  // NEW LANDLORD (SIMPLE)
-  // =========================
   else {
     if (!landlord?.name || !landlord?.email || !landlord?.mobile_number) {
       return next(
@@ -57,7 +54,6 @@ exports.createProject = catchAsync(async (req, res, next) => {
       );
     }
 
-    // role check
     const exist = await User.findOne({
       $or: [
         { email: landlord.email },
@@ -71,14 +67,13 @@ exports.createProject = catchAsync(async (req, res, next) => {
       return next(new ErrorHandler("Landlord already exists", 400));
     }
 
-    //create landlord
     finalLandlord = await User.create({
       name: landlord.name,
       email: landlord.email,
       mobile_number: landlord.mobile_number,
       role: role._id,
 
-      password: "1234", // dummy password
+      password: "1234", 
       isVerified: true,
     });
   }
@@ -90,10 +85,23 @@ exports.createProject = catchAsync(async (req, res, next) => {
   const createdPlot = await PlotDetails.create({
     ...plot,
     landlordId: finalLandlord._id,
-    landlordName: finalLandlord.name,
-    landlordEmail: finalLandlord.email,
-    landlordMobile: finalLandlord.mobile_number,
+    // landlordName: finalLandlord.name,
+    // landlordEmail: finalLandlord.email,
+    // landlordMobile: finalLandlord.mobile_number,
   });
+
+
+  //---create building---
+  
+  // const createdBuilding = await BuildingDetails.create({
+  //   plotId:plot?._id,
+  //   ...buildingDtails
+  // });
+
+
+
+//--reference in floor
+
 
   const allFloors = [];
 
