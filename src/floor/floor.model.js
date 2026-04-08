@@ -2,13 +2,13 @@ const mongoose = require("mongoose");
 
 const floorDetailsSchema = new mongoose.Schema(
   {
-    plotId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "PlotDetails",
-      required: true,
-    },
+    // plotId: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "PlotDetails",
+    //   required: true,
+    // },
 
-      buildingId: {
+    buildingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "BuildingDetails",
       required: true,
@@ -61,6 +61,6 @@ const floorDetailsSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
-floorDetailsSchema.index({ plotId: 1, floorName: 1 }, { unique: true });
+floorDetailsSchema.index({ buildingId: 1, floorName: 1 }, { unique: true });
 
 module.exports = mongoose.model("FloorDetails", floorDetailsSchema);

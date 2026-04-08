@@ -2,14 +2,21 @@ const mongoose = require("mongoose");
 
 const unitSchema = new mongoose.Schema(
   {
-    plotId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "PlotDetails",
-    },
+    // plotId: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "PlotDetails",
+    // },
 
     floorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "FloorDetails",
+      required: true,
+    },
+
+    buildingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BuildingDetails",
+      required: true,
     },
 
     unitId: {

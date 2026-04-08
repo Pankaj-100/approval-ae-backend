@@ -2,36 +2,16 @@ const mongoose = require("mongoose");
 
 const plotDetailsSchema = new mongoose.Schema(
   {
-  
-
     landlordId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
 
-
     plotNumber: {
       type: Number,
       required: true,
     },
-
-    // buildingName: {
-    //   type: String,
-    //   required: true,
-    // },
-
-    // buildingSqft: {
-    //   type: Number,
-    //   required: true,
-    // },
-
-    // buildingUsage: [
-    //   {
-    //     type: String,
-    //     required: true,
-    //   },
-    // ],
 
     documents: {
       siteAffectionPlan: {

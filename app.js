@@ -24,6 +24,7 @@ const approvedDocumentRoutes = require("./src/approved-documents/approved-docume
 const inspectionRoutes = require("./src/inspection-detail/inspectionDetail.router");
 const userManagementRoutes = require("./src/user-management/userManagement.router");
 const landlordListRoutes = require("./src/landlordList/landlordList.router");
+const buildingRoutes = require("./src/Building/building.router");
 
 const app = express();
 
@@ -69,6 +70,7 @@ app.use("/api/v1/approved-documents", approvedDocumentRoutes);
 app.use("/api/v1/inspection-detail", inspectionRoutes);
 app.use("/api/v1/user-management", userManagementRoutes);
 app.use("/api/v1/landlord", landlordListRoutes);
+app.use("/api/v1/building", buildingRoutes);
 
 /* =========================
    HEALTH CHECK

@@ -36,4 +36,4 @@ const buildingSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-module.exports = mongoose.model("Building", buildingSchema);
+module.exports = mongoose.model("BuildingDetails", buildingSchema);

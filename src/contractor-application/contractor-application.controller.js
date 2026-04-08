@@ -88,16 +88,13 @@ exports.getUnitsByFloorId = catchAsync(async (req, res, next) => {
 
 exports.submitApplication = catchAsync(async (req, res, next) => {
   const {
-    plotNumber,
-    buildingName,
-    floorNumber,
-    unitNumber,
+    plotId,
+    floorId,
+    unitId,
 
-    unitType,
     usageType,
-
-    areaVariationSqm,
     totalUnitAreaSqm,
+    areaVariationSqm,
     hasMezzanine,
     totalUnitAreaAfterMezzanineSqm,
 
@@ -114,10 +111,8 @@ exports.submitApplication = catchAsync(async (req, res, next) => {
   // VALIDATION
   // =========================
 
-  if (!plotNumber || !buildingName || !floorNumber || !unitNumber) {
-    return next(
-      new ErrorHandler("Plot, Building, Floor and Unit are required", 400),
-    );
+  if (!plotId || !floorId || !unitId) {
+    return next(new ErrorHandler("Plot, Floor and Unit are required", 400));
   }
 
   if (!usageType || !totalUnitAreaSqm) {
@@ -131,55 +126,62 @@ exports.submitApplication = catchAsync(async (req, res, next) => {
   }
 
   // =========================
+  // FETCH DATA (IMPORTANT)
+  // =========================
+
+  const plot = await PlotDetails.findById(plotId);
+  const floor = await FloorDetails.findById(floorId);
+  const unit = await Unit.findById(unitId);
+
+  if (!plot || !floor || !unit) {
+    return next(new ErrorHandler("Invalid selection", 400));
+  }
+
+  // =========================
   // DUPLICATE CHECK
   // =========================
 
   const exist = await ContractorApplication.findOne({
-    plotNumber,
-    floorNumber,
-    unitNumber,
+    unitId,
     isDeleted: false,
   });
 
   if (exist) {
-    return next(
-      new ErrorHandler("Application already exists for this unit", 400),
-    );
+    return next(new ErrorHandler("Application already exists", 400));
   }
 
   // =========================
-  // CREATE APPLICATION
+  // CREATE
   // =========================
 
   const application = await ContractorApplication.create({
-    plotNumber,
-    buildingName,
-    floorNumber,
-    unitNumber,
+    plotId,
+    floorId,
+    unitId,
 
-    unitType: unitType || "Single Unit",
+    // snapshot
+    plotNumber: plot.plotNumber,
+    buildingName: plot.buildingName,
+    floorNumber: floor.floorName,
+    unitNumber: unit.unitId,
+
     usageType,
-
-    areaVariationSqm: areaVariationSqm || 0,
     totalUnitAreaSqm,
+    areaVariationSqm: areaVariationSqm || 0,
 
     hasMezzanine: hasMezzanine || false,
     totalUnitAreaAfterMezzanineSqm: hasMezzanine
       ? totalUnitAreaAfterMezzanineSqm
       : null,
 
-    tenantName: tenantName || null,
-    tenantMobile: tenantMobile || null,
-    tenantEmail: tenantEmail || null,
+    tenantName,
+    tenantMobile,
+    tenantEmail,
 
-    ejariDocument: ejariDocument || null,
-    appointmentLetter: appointmentLetter || null,
-    fitOutDrawings: fitOutDrawings || null,
+    ejariDocument,
+    appointmentLetter,
+    fitOutDrawings,
   });
-
-  // =========================
-  // RESPONSE
-  // =========================
 
   res.status(201).json({
     success: true,
