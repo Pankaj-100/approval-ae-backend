@@ -1,16 +1,16 @@
 const express = require("express");
 
 const {
-  getPlotByPlotNumber,
-  getFloorsByPlotId,
   getUnitsByFloorId,
   submitApplication,
+  getBuildingsByPlotNumber,
+  getFloorsByBuildingId,
 } = require("./contractor-application.controller");
 
 const route = express.Router();
 
-route.get("/plot/:plotNumber", getPlotByPlotNumber);
-route.get("/floor/plot/:plotId", getFloorsByPlotId);
+route.get("/building/:plotNumber", getBuildingsByPlotNumber);
+route.get("/floor/:buildingId", getFloorsByBuildingId);
 route.get("/unit/:floorId", getUnitsByFloorId);
 route.post("/submit-application", submitApplication);
 

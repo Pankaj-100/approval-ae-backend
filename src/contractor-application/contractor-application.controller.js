@@ -1,54 +1,77 @@
 const PlotDetails = require("../plot/plot.model");
 const FloorDetails = require("../floor/floor.model");
+const BuildingDetails = require("../Building/building.model");
 const Unit = require("../floor-unit/floor-unit.model");
 const ContractorApplication = require("./contractor-application.model");
 const ErrorHandler = require("../../utils/errorHandler");
 const catchAsync = require("../../utils/catchAsyncError");
 
-// =========================
-// GET PLOT BY PLOT NUMBER
-// =========================
-exports.getPlotByPlotNumber = catchAsync(async (req, res, next) => {
+// GET BUILDINGS BY PLOT NUMBER
+
+exports.getBuildingsByPlotNumber = catchAsync(async (req, res, next) => {
   const { plotNumber } = req.params;
 
   if (!plotNumber) {
     return next(new ErrorHandler("Plot number is required", 400));
   }
 
-  const plot = await PlotDetails.find({
+  //Find plot
+  const plot = await PlotDetails.findOne({
     plotNumber,
     isDeleted: false,
     isActive: true,
-  }).select("_id buildingName");
+  });
 
-  if (!plot || plot.length === 0) {
+  if (!plot) {
     return next(new ErrorHandler("Plot not found", 404));
   }
 
+  //Find buildings using plotId
+  const buildings = await BuildingDetails.find({
+    plotId: plot._id,
+    isDeleted: false,
+    isActive: true,
+  }).select("_id buildingName buildingUsage buildingSqft");
+
   res.status(200).json({
     success: true,
-    data: plot,
+    data: {
+      plotId: plot._id,
+      plotNumber: plot.plotNumber,
+      buildings,
+    },
   });
 });
 
-// =========================
-// GET FLOORS BY PLOT ID
-// =========================
-exports.getFloorsByPlotId = catchAsync(async (req, res, next) => {
-  const { plotId } = req.params;
+// GET FLOORS BY BUILDING ID
 
-  if (!plotId) {
-    return next(new ErrorHandler("Plot ID is required", 400));
+exports.getFloorsByBuildingId = catchAsync(async (req, res, next) => {
+  const { buildingId } = req.params;
+console.log(buildingId);
+  if (!buildingId) {
+    return next(new ErrorHandler("Building ID is required", 400));
   }
 
+  // Check building exists
+  const building = await BuildingDetails.findOne({
+    _id: buildingId,
+    isDeleted: false,
+    isActive: true,
+  });
+
+  if (!building) {
+    return next(new ErrorHandler("Building not found", 404));
+  }
+
+  // Get floors
   const floors = await FloorDetails.find({
-    plotId,
+    buildingId,
     isDeleted: false,
     isActive: true,
   }).select("_id floorName");
 
-  if (!floors || floors.length === 0) {
-    return next(new ErrorHandler("No floors found for this plot", 404));
+  if (!floors.length) {
+    return next(new ErrorHandler("No floors found", 404));
   }
 
   res.status(200).json({
@@ -68,6 +91,17 @@ exports.getUnitsByFloorId = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Floor ID is required", 400));
   }
 
+  //check floor exists
+  const floor = await FloorDetails.findOne({
+    _id: floorId,
+    isDeleted: false,
+    isActive: true,
+  });
+
+  if (!floor) {
+    return next(new ErrorHandler("Floor not found", 404));
+  }
+
   // fetch units
   const units = await Unit.find({
     floorId,
@@ -85,6 +119,8 @@ exports.getUnitsByFloorId = catchAsync(async (req, res, next) => {
     data: units,
   });
 });
+
+// SUBMIT APPLICATION
 
 exports.submitApplication = catchAsync(async (req, res, next) => {
   const {
@@ -107,12 +143,9 @@ exports.submitApplication = catchAsync(async (req, res, next) => {
     fitOutDrawings,
   } = req.body;
 
-  // =========================
-  // VALIDATION
-  // =========================
-
+  // ===== VALIDATION =====
   if (!plotId || !floorId || !unitId) {
-    return next(new ErrorHandler("Plot, Floor and Unit are required", 400));
+    return next(new ErrorHandler("Plot, Floor and Unit required", 400));
   }
 
   if (!usageType || !totalUnitAreaSqm) {
@@ -120,27 +153,21 @@ exports.submitApplication = catchAsync(async (req, res, next) => {
   }
 
   if (hasMezzanine && !totalUnitAreaAfterMezzanineSqm) {
-    return next(
-      new ErrorHandler("Mezzanine area is required when enabled", 400),
-    );
+    return next(new ErrorHandler("Mezzanine area required", 400));
   }
 
-  // =========================
-  // FETCH DATA (IMPORTANT)
-  // =========================
-
-  const plot = await PlotDetails.findById(plotId);
-  const floor = await FloorDetails.findById(floorId);
-  const unit = await Unit.findById(unitId);
+  // ===== FETCH =====
+  const [plot, floor, unit] = await Promise.all([
+    PlotDetails.findById(plotId),
+    FloorDetails.findById(floorId),
+    Unit.findById(unitId),
+  ]);
 
   if (!plot || !floor || !unit) {
     return next(new ErrorHandler("Invalid selection", 400));
   }
 
-  // =========================
-  // DUPLICATE CHECK
-  // =========================
-
+  // ===== DUPLICATE CHECK =====
   const exist = await ContractorApplication.findOne({
     unitId,
     isDeleted: false,
@@ -150,39 +177,94 @@ exports.submitApplication = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Application already exists", 400));
   }
 
-  // =========================
-  // CREATE
-  // =========================
+  // ===== SAFE REFERENCE =====
+  let application;
+  let attempts = 0;
 
-  const application = await ContractorApplication.create({
-    plotId,
-    floorId,
-    unitId,
+  while (!application && attempts < 5) {
+    try {
+      const randomNumber = Math.floor(100000000 + Math.random() * 900000000);
 
-    // snapshot
-    plotNumber: plot.plotNumber,
-    buildingName: plot.buildingName,
-    floorNumber: floor.floorName,
-    unitNumber: unit.unitId,
+      const referenceNumber = `APP${randomNumber}`;
 
-    usageType,
-    totalUnitAreaSqm,
-    areaVariationSqm: areaVariationSqm || 0,
+      application = await ContractorApplication.create({
+        plotId,
+        floorId,
+        unitId,
+        referenceNumber,
 
-    hasMezzanine: hasMezzanine || false,
-    totalUnitAreaAfterMezzanineSqm: hasMezzanine
-      ? totalUnitAreaAfterMezzanineSqm
-      : null,
+        // SNAPSHOT
+        plotNumber: plot.plotNumber,
+        floorNumber: floor.floorName,
+        unitNumber: unit.unitId,
 
-    tenantName,
-    tenantMobile,
-    tenantEmail,
+        currentVersion: 1,
 
-    ejariDocument,
-    appointmentLetter,
-    fitOutDrawings,
-  });
+        versions: [
+          {
+            versionNumber: 1,
 
+            usageType,
+            totalUnitAreaSqm,
+            areaVariationSqm: areaVariationSqm || 0,
+
+            hasMezzanine: hasMezzanine || false,
+            totalUnitAreaAfterMezzanineSqm: hasMezzanine
+              ? totalUnitAreaAfterMezzanineSqm
+              : null,
+
+            tenantName,
+            tenantMobile,
+            tenantEmail,
+
+            //DOCUMENT VERSIONING
+            documents: {
+              ejariDocument: ejariDocument
+                ? [
+                    {
+                      versionNumber: 1,
+                      fileUrl: ejariDocument,
+                    },
+                  ]
+                : [],
+
+              appointmentLetter: appointmentLetter
+                ? [
+                    {
+                      versionNumber: 1,
+                      fileUrl: appointmentLetter,
+                    },
+                  ]
+                : [],
+
+              fitOutDrawings: fitOutDrawings
+                ? [
+                    {
+                      versionNumber: 1,
+                      fileUrl: fitOutDrawings,
+                    },
+                  ]
+                : [],
+            },
+
+            status: "UNDER_REVIEW",
+          },
+        ],
+      });
+    } catch (error) {
+      if (error.code === 11000) {
+        attempts++;
+        continue;
+      }
+      return next(error);
+    }
+  }
+
+  if (!application) {
+    return next(new ErrorHandler("Failed to generate reference number", 500));
+  }
+
+  // ===== RESPONSE =====
   res.status(201).json({
     success: true,
     message: "Application submitted successfully",
