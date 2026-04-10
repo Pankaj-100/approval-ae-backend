@@ -1,83 +1,5 @@
 const mongoose = require("mongoose");
 
-// const versionSchema = new mongoose.Schema(
-//   {
-//     versionNumber: {
-//       type: Number,
-//       required: true,
-//     },
-
-//     usageType: {
-//       type: String,
-//     },
-
-//     totalUnitAreaSqm: {
-//       type: Number,
-//     },
-
-//     areaVariationSqm: {
-//       type: Number,
-//     },
-
-//     hasMezzanine: {
-//       type: Boolean,
-//     },
-//     totalUnitAreaAfterMezzanineSqm: {
-//       type: Number,
-//     },
-
-//     tenantName: {
-//       type: String,
-//     },
-//     tenantMobile: {
-//       type: String,
-//     },
-//     tenantEmail: {
-//       type: String,
-//     },
-
-//     documents: {
-//       ejariDocument: {
-//         type: String,
-//       },
-//       appointmentLetter: {
-//         type: String,
-//       },
-//       fitOutDrawings: {
-//         type: String,
-//       },
-//     },
-
-//     status: {
-//       type: String,
-//       enum: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED"],
-//       default: "PENDING",
-//     },
-
-//     remarks: {
-//       type: String,
-//       default: null,
-//     },
-
-//     reviewedBy: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: "User",
-//       default: null,
-//     },
-
-//     reviewedAt: {
-//       type: Date,
-//       default: null,
-//     },
-
-//     createdAt: {
-//       type: Date,
-//       default: Date.now,
-//     },
-//   },
-//   { _id: false },
-// );
-
 // Sub-schema for a single document's version history
 const documentVersionSchema = new mongoose.Schema(
   {
@@ -179,9 +101,17 @@ const contractorApplicationSchema = new mongoose.Schema(
     plotNumber: {
       type: String,
     },
+
     buildingName: {
       type: String,
     },
+
+    buildingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BuildingDetails",
+      required: true,
+    },
+
     floorNumber: {
       type: String,
     },

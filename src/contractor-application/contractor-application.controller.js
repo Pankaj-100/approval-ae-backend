@@ -47,7 +47,7 @@ exports.getBuildingsByPlotNumber = catchAsync(async (req, res, next) => {
 
 exports.getFloorsByBuildingId = catchAsync(async (req, res, next) => {
   const { buildingId } = req.params;
-console.log(buildingId);
+
   if (!buildingId) {
     return next(new ErrorHandler("Building ID is required", 400));
   }
@@ -127,6 +127,7 @@ exports.submitApplication = catchAsync(async (req, res, next) => {
     plotId,
     floorId,
     unitId,
+    buildingId,
 
     usageType,
     totalUnitAreaSqm,
@@ -144,8 +145,10 @@ exports.submitApplication = catchAsync(async (req, res, next) => {
   } = req.body;
 
   // ===== VALIDATION =====
-  if (!plotId || !floorId || !unitId) {
-    return next(new ErrorHandler("Plot, Floor and Unit required", 400));
+  if (!plotId || !floorId || !unitId || !buildingId) {
+    return next(
+      new ErrorHandler("Plot, Building, Floor and Unit required", 400),
+    );
   }
 
   if (!usageType || !totalUnitAreaSqm) {
@@ -156,18 +159,29 @@ exports.submitApplication = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Mezzanine area required", 400));
   }
 
-  // ===== FETCH =====
-  const [plot, floor, unit] = await Promise.all([
+  //FETCH
+  const [plot, floor, unit, building] = await Promise.all([
     PlotDetails.findById(plotId),
     FloorDetails.findById(floorId),
     Unit.findById(unitId),
+    BuildingDetails.findById(buildingId),
   ]);
 
-  if (!plot || !floor || !unit) {
+  if (!plot || !floor || !unit || !building) {
     return next(new ErrorHandler("Invalid selection", 400));
   }
 
-  // ===== DUPLICATE CHECK =====
+  // floor belongs to building
+  if (floor.buildingId.toString() !== buildingId) {
+    return next(new ErrorHandler("Floor not found", 404));
+  }
+
+  // unit belongs to floor
+  if (unit.floorId.toString() !== floorId) {
+    return next(new ErrorHandler("Unit not found", 404));
+  }
+
+  //DUPLICATE CHECK
   const exist = await ContractorApplication.findOne({
     unitId,
     isDeleted: false,
@@ -177,7 +191,7 @@ exports.submitApplication = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Application already exists", 400));
   }
 
-  // ===== SAFE REFERENCE =====
+  //SAFE REFERENCE
   let application;
   let attempts = 0;
 
@@ -191,10 +205,12 @@ exports.submitApplication = catchAsync(async (req, res, next) => {
         plotId,
         floorId,
         unitId,
+        buildingId,
         referenceNumber,
 
         // SNAPSHOT
         plotNumber: plot.plotNumber,
+        buildingName: building.buildingName,
         floorNumber: floor.floorName,
         unitNumber: unit.unitId,
 
@@ -264,10 +280,43 @@ exports.submitApplication = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Failed to generate reference number", 500));
   }
 
-  // ===== RESPONSE =====
+  //RESPONSE
   res.status(201).json({
     success: true,
     message: "Application submitted successfully",
+    data: application,
+  });
+});
+
+//get all applications
+exports.getAllApplications = catchAsync(async (req, res, next) => {
+  const applications = await ContractorApplication.find({
+    isDeleted: false,
+  })
+    .populate("buildingId", "buildingName")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  res.status(200).json({
+    success: true,
+    data: applications,
+  });
+});
+
+//get application by id
+exports.getApplicationById = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+  const application = await ContractorApplication.findOne({
+    _id: id,
+    isDeleted: false,
+  });
+
+  if (!application) {
+    return next(new ErrorHandler("Application not found", 404));
+  }
+
+  res.status(200).json({
+    success: true,
     data: application,
   });
 });

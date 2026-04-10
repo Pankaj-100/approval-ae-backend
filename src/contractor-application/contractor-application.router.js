@@ -5,13 +5,20 @@ const {
   submitApplication,
   getBuildingsByPlotNumber,
   getFloorsByBuildingId,
+  getAllApplications,
+  getApplicationById,
 } = require("./contractor-application.controller");
+const { uploadFile } = require("../plot/plot.controller");
+const { upload } = require("../../utils/s3");
 
 const route = express.Router();
 
+route.post("/upload", upload.single("file"), uploadFile);
+route.get("/application", getAllApplications);
 route.get("/building/:plotNumber", getBuildingsByPlotNumber);
 route.get("/floor/:buildingId", getFloorsByBuildingId);
 route.get("/unit/:floorId", getUnitsByFloorId);
 route.post("/submit-application", submitApplication);
+route.get("/:id", getApplicationById);
 
 module.exports = route;
