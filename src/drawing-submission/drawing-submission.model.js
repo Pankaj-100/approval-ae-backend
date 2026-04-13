@@ -14,12 +14,6 @@ const fileVersionSchema = new mongoose.Schema(
 
     fileName: String,
 
-    // uploadedBy: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "User",
-    //   required: true,
-    // },
-
     uploadedAt: {
       type: Date,
       default: Date.now,

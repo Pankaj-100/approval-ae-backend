@@ -53,7 +53,10 @@ exports.submitDrawing = catchAsync(async (req, res, next) => {
   res.status(200).json({
     success: true,
     message: "Drawing submitted successfully",
-    data: newVersion,
+    data: {
+      drawingSubmissionId: doc._id,
+      version: newVersion,
+    },
   });
 });
 
