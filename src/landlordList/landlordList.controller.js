@@ -1,6 +1,7 @@
 const PlotDetails = require("../plot/plot.model");
 const FloorDetails = require("../floor/floor.model");
 const Unit = require("../floor-unit/floor-unit.model");
+const BuildingDetails = require("../Building/building.model");
 const User = require("../modules/user/user.model");
 
 exports.getLandlordProjects = async (req, res) => {
@@ -28,13 +29,10 @@ exports.getLandlordProjects = async (req, res) => {
 
     //Search
     if (search) {
-      filter.$or = [
-        { buildingName: { $regex: search, $options: "i" } },
-        { plotNumber: { $regex: search, $options: "i" } },
-      ];
+      filter.$or = [{ plotNumber: { $regex: search, $options: "i" } }];
     }
 
-    //Total count
+    //Total records
     const totalRecords = await PlotDetails.countDocuments(filter);
 
     //Get plots
@@ -43,14 +41,22 @@ exports.getLandlordProjects = async (req, res) => {
       .limit(per_page)
       .sort({ createdAt: -1 });
 
-    //Add floors & units count
+    //Map projects
     const projects = await Promise.all(
       plots.map(async (plot) => {
+        // 👉 Get buildings of this plot
+        const buildings = await BuildingDetails.find({
+          plotId: plot._id,
+          isDeleted: false,
+        });
+
+        //Get total floors
         const totalFloors = await FloorDetails.countDocuments({
           plotId: plot._id,
           isDeleted: false,
         });
 
+        //Get total units
         const totalUnits = await Unit.countDocuments({
           plotId: plot._id,
           isDeleted: false,
@@ -59,8 +65,15 @@ exports.getLandlordProjects = async (req, res) => {
         return {
           project_id: plot._id,
           plot_number: plot.plotNumber,
-          building_name: plot.buildingName,
-          building_sqft: plot.buildingSqft,
+
+          //Buildings array
+          buildings: buildings.map((b) => ({
+            building_id: b._id,
+            building_name: b.buildingName,
+            building_sqft: b.buildingSqft,
+            building_usage: b.buildingUsage,
+          })),
+
           total_floors: totalFloors,
           total_units: totalUnits,
           created_at: plot.createdAt,
@@ -68,6 +81,7 @@ exports.getLandlordProjects = async (req, res) => {
       }),
     );
 
+    //Response
     return res.json({
       status: true,
       message: "Landlord projects fetched successfully",

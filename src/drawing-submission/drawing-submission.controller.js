@@ -2,264 +2,20 @@ const catchAsync = require("../../utils/catchAsyncError");
 const ErrorHandler = require("../../utils/errorHandler");
 const DrawingSubmission = require("./drawing-submission.model");
 
-// // create drawing submission
-// exports.createDrawingSubmission = async (req, res) => {
-//   try {
-//     // generate reference number
-//     const randomNumber = Math.floor(100000000 + Math.random() * 900000000);
+const allowedTypes = ["architectural", "mep", "structural"];
+const allowedSubTypes = ["autoCad", "dwf"];
 
-//     const referenceNumber = `APP${randomNumber}`;
-
-//     const drawingSubmission = await DrawingSubmission.create({
-//       ...req.body,
-//       referenceNumber,
-//     });
-
-//     return res.status(201).json({
-//       success: true,
-//       message: "Drawing Submission created successfully",
-//       data: drawingSubmission,
-//     });
-//   } catch (error) {
-//     return res.status(400).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// // get all submissions
-// exports.getAllDrawingSubmission = async (req, res) => {
-//   try {
-//     const submissions = await DrawingSubmission.find({
-//       isDeleted: false,
-//     })
-//       .populate("floorId", "floorName")
-//       .populate("floorUnitId", "tenantName")
-//       .sort({ createdAt: -1 });
-
-//     return res.status(200).json({
-//       success: true,
-//       data: submissions,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// //get single submission
-// exports.getDrawingSubmissionById = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const submission = await DrawingSubmission.findOne({
-//       _id: id,
-//       isDeleted: false,
-//     })
-//       .populate("floorId", "floorName")
-//       .populate("floorUnitId", "tenantName");
-
-//     if (!submission) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Submission not found",
-//       });
-//     }
-
-//     return res.status(200).json({
-//       success: true,
-//       data: submission,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// // update file status
-// exports.updateFileStatus = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-
-//     const documentType = req.body.documentType;
-//     const fileType = req.body.fileType;
-//     const status = req.body.status;
-//     const approvedBy = req.body.approvedBy;
-//     const rejectionReason = req.body.rejectionReason;
-
-//     const drawingSubmission = await DrawingSubmission.findById(id);
-
-//     if (!drawingSubmission || drawingSubmission.isDeleted) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Drawing Submission not found",
-//       });
-//     }
-
-//     if (!drawingSubmission[documentType]) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Inavlid document type",
-//       });
-//     }
-
-//     if (!drawingSubmission[documentType][fileType]) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Inavlid document type",
-//       });
-//     }
-
-//     // update status
-//     drawingSubmission[documentType][fileType].status = status;
-//     drawingSubmission[documentType][fileType].approvedBy = approvedBy;
-//     drawingSubmission[documentType][fileType].rejectionReason = rejectionReason;
-//     drawingSubmission[documentType][fileType].approvedAt =
-//       status === "APPROVED" ? new Date() : null;
-
-//     await drawingSubmission.save();
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "File status updated successfully",
-//       data: drawingSubmission,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// // update single submission
-// exports.updateSingleDrawingSubmission = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { documentType, fileType, file } = req.body;
-
-//     const drawingSubmission = await DrawingSubmission.findById(id);
-
-//     if (!drawingSubmission || drawingSubmission.isDeleted) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Drawing Submission not found",
-//       });
-//     }
-
-//     if (!drawingSubmission[documentType]) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Inavlid document type",
-//       });
-//     }
-
-//     if (!drawingSubmission[documentType][fileType]) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Inavlid document type",
-//       });
-//     }
-
-//     //update file
-//     drawingSubmission[documentType][fileType].file = file;
-
-//     // resest to default state
-//     drawingSubmission[documentType][fileType].status = "PENDING";
-//     drawingSubmission[documentType][fileType].approvedBy = null;
-//     drawingSubmission[documentType][fileType].rejectionReason = null;
-//     drawingSubmission[documentType][fileType].approvedAt = null;
-
-//     await drawingSubmission.save();
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "File updated successfully",
-//       data: drawingSubmission,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// // update drawing submission
-// exports.updateDrawingSubmission = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const drawingSubmission = await DrawingSubmission.findOneAndUpdate(
-//       { _id: id, isDeleted: false },
-//       req.body,
-//       { new: true },
-//     );
-
-//     if (!drawingSubmission) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Drawing Submission not found",
-//       });
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Drawing Submission updated successfully",
-//       data: drawingSubmission,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// // delete drawing submission
-// exports.deleteDrawingSubmission = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const drawingSubmission = await DrawingSubmission.findOneAndUpdate(
-//       { _id: id, isDeleted: false },
-//       { isDeleted: true },
-//       { new: true },
-//     );
-
-//     if (!drawingSubmission) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Drawing Submission not found",
-//       });
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Drawing Submission deleted successfully",
-//       data: drawingSubmission,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-exports.uploadDrawing = catchAsync(async (req, res, next) => {
-  const {
-    contractorApplicationId,
-    type, // architectural | mep | structural
-    subType, // autoCad | dwf
-    fileUrl,
-    fileName,
-  } = req.body;
+//Submit Drawing (fileUrl based)
+exports.submitDrawing = catchAsync(async (req, res, next) => {
+  const { contractorApplicationId, type, subType, fileUrl, fileName } =
+    req.body;
 
   if (!contractorApplicationId || !type || !subType || !fileUrl) {
-    return next(new ErrorHandler("All required fields must be provided", 400));
+    return next(new ErrorHandler("Missing required fields", 400));
+  }
+
+  if (!allowedTypes.includes(type) || !allowedSubTypes.includes(subType)) {
+    return next(new ErrorHandler("Invalid type or subType", 400));
   }
 
   let doc = await DrawingSubmission.findOne({
@@ -267,43 +23,93 @@ exports.uploadDrawing = catchAsync(async (req, res, next) => {
     isDeleted: false,
   });
 
-  // Create if not exists
   if (!doc) {
-    doc = await DrawingSubmission.create({
-      contractorApplicationId,
-    });
+    doc = await DrawingSubmission.create({ contractorApplicationId });
   }
 
-  const files = doc[type]?.[subType] || [];
+  //safe init
+  if (!doc[type]) doc[type] = {};
+  if (!doc[type][subType]) doc[type][subType] = [];
 
-  // Old versions → not latest
+  const files = doc[type][subType];
+
+  // old versions not latest
   files.forEach((f) => (f.isLatest = false));
 
+  const lastVersion = files[files.length - 1];
+
   const newVersion = {
-    versionNumber: files.length + 1,
+    versionNumber: lastVersion ? lastVersion.versionNumber + 1 : 1,
     fileUrl,
     fileName,
     isLatest: true,
+    status: "PENDING",
   };
 
   files.push(newVersion);
-
-  doc[type][subType] = files;
 
   await doc.save();
 
   res.status(200).json({
     success: true,
-    message: "File uploaded successfully",
+    message: "Drawing submitted successfully",
     data: newVersion,
   });
 });
 
-exports.getLatestDrawing = catchAsync(async (req, res, next) => {
-  const { contractorApplicationId, type, subType } = req.query;
+//Get All Latest Drawings
+exports.getAllDrawings = catchAsync(async (req, res, next) => {
+  const { contractorApplicationId } = req.query;
 
-  if (!contractorApplicationId || !type || !subType) {
-    return next(new ErrorHandler("Required query params missing", 400));
+  const doc = await DrawingSubmission.findOne({
+    contractorApplicationId,
+    isDeleted: false,
+  });
+
+  if (!doc) {
+    return next(new ErrorHandler("No drawings found", 404));
+  }
+
+  const getLatest = (arr) => arr?.find((f) => f.isLatest) || null;
+
+  res.status(200).json({
+    success: true,
+    data: {
+      architectural: {
+        autoCad: getLatest(doc.architectural?.autoCad),
+        dwf: getLatest(doc.architectural?.dwf),
+      },
+      mep: {
+        autoCad: getLatest(doc.mep?.autoCad),
+        dwf: getLatest(doc.mep?.dwf),
+      },
+      structural: {
+        autoCad: getLatest(doc.structural?.autoCad),
+        dwf: getLatest(doc.structural?.dwf),
+      },
+    },
+  });
+});
+
+//Approve / Reject Drawing (with remarks)
+exports.reviewDrawing = catchAsync(async (req, res, next) => {
+  const {
+    contractorApplicationId,
+    type,
+    subType,
+    versionNumber,
+    status,
+    rejectionReason,
+  } = req.body;
+
+  if (
+    !contractorApplicationId ||
+    !type ||
+    !subType ||
+    !versionNumber ||
+    !status
+  ) {
+    return next(new ErrorHandler("Missing required fields", 400));
   }
 
   const doc = await DrawingSubmission.findOne({
@@ -317,19 +123,33 @@ exports.getLatestDrawing = catchAsync(async (req, res, next) => {
 
   const files = doc[type]?.[subType] || [];
 
-  const latest = files.find((f) => f.isLatest);
+  const file = files.find((f) => f.versionNumber === versionNumber);
+
+  if (!file) {
+    return next(new ErrorHandler("Version not found", 404));
+  }
+
+  file.status = status;
+  file.approvedAt = new Date();
+
+  if (status === "REJECTED") {
+    file.rejectionReason = rejectionReason;
+  }
+
+  await doc.save();
 
   res.status(200).json({
     success: true,
-    data: latest || null,
+    message: `Document ${status}`,
   });
 });
 
-exports.getDrawingHistory = catchAsync(async (req, res, next) => {
+//Get Versions
+exports.getDocumentVersions = catchAsync(async (req, res, next) => {
   const { contractorApplicationId, type, subType } = req.query;
 
   if (!contractorApplicationId || !type || !subType) {
-    return next(new ErrorHandler("Required query params missing", 400));
+    return next(new ErrorHandler("Missing params", 400));
   }
 
   const doc = await DrawingSubmission.findOne({
@@ -350,12 +170,10 @@ exports.getDrawingHistory = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.getDrawingDetails = catchAsync(async (req, res, next) => {
-  const { contractorApplicationId, type, subType } = req.query;
-
-  if (!contractorApplicationId || !type || !subType) {
-    return next(new ErrorHandler("Required query params missing", 400));
-  }
+//Reupload after rejection
+exports.reuploadDrawing = catchAsync(async (req, res, next) => {
+  const { contractorApplicationId, type, subType, fileUrl, fileName } =
+    req.body;
 
   const doc = await DrawingSubmission.findOne({
     contractorApplicationId,
@@ -368,29 +186,29 @@ exports.getDrawingDetails = catchAsync(async (req, res, next) => {
 
   const files = doc[type]?.[subType] || [];
 
-  //Latest version
-  const latest = files.find((f) => f.isLatest) || null;
+  const latest = files.find((f) => f.isLatest);
 
-  //Previous versions
-  const previousVersions = files.filter((f) => !f.isLatest);
+  if (!latest || latest.status !== "REJECTED") {
+    return next(new ErrorHandler("Only rejected file can be reuploaded", 400));
+  }
 
-  //Last rejected (if any)
-  const lastRejected = [...files]
-    .reverse()
-    .find((f) => f.status === "REJECTED");
+  files.forEach((f) => (f.isLatest = false));
+
+  const newVersion = {
+    versionNumber: latest.versionNumber + 1,
+    fileUrl,
+    fileName,
+    isLatest: true,
+    status: "PENDING",
+  };
+
+  files.push(newVersion);
+
+  await doc.save();
 
   res.status(200).json({
     success: true,
-    data: {
-      latestDocument: latest,
-      previousDocuments: previousVersions,
-      totalVersions: files.length,
-      lastRejected: lastRejected
-        ? {
-            versionNumber: lastRejected.versionNumber,
-            rejectionReason: lastRejected.rejectionReason,
-          }
-        : null,
-    },
+    message: "Reuploaded successfully",
+    data: newVersion,
   });
 });
