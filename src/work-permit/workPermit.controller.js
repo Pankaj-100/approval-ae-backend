@@ -1,194 +1,203 @@
 const WorkPermit = require("./workPermit.model");
+const catchAsync = require("../../utils/catchAsyncError");
+const ErrorHandler = require("../../utils/errorHandler");
 
-// create work permit
-exports.createWorkPermit = async (req, res) => {
-  try {
-    const workPermit = await WorkPermit.create(req.body);
+const allowedDocs = [
+  "dcd",
+  "dewaApproval",
+  "dmDdaDrawings",
+  "subcontractorUndertaking",
+  "carInsurance",
+  "workmenCompensationInsurance",
+  "emiratesId",
+  "commonAreaProtection",
+  "securityCheque", // optional
+];
 
-    return res.status(201).json({
-      success: true,
-      message: "Work Permit created successfully",
-      data: workPermit,
-    });
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
+//Submit Document
+exports.submitWorkPermit = catchAsync(async (req, res, next) => {
+  const { contractorApplicationId, documentType, fileUrl, fileName } = req.body;
+
+  if (!contractorApplicationId || !documentType || !fileUrl) {
+    return next(new ErrorHandler("Missing required fields", 400));
   }
-};
 
-// get all work permit
-exports.getAllWorkPermit = async (req, res) => {
-  try {
-    const workPermit = await WorkPermit.find({ isDeleted: false })
-      .populate("floorId", "floorName")
-      .populate("floorUnitId", "tenantName")
-      .sort({ createdAt: -1 });
-
-    return res.status(200).json({
-      success: true,
-      data: workPermit,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+  if (!allowedDocs.includes(documentType)) {
+    return next(new ErrorHandler("Invalid document type", 400));
   }
-};
 
-// get work permit by id
-exports.getWorkPermitById = async (req, res) => {
-  try {
-    const workPermit = await WorkPermit.findOne({
-      _id: req.params.id,
-      isDeleted: false,
-    })
-      .populate("floorId", "floorName")
-      .populate("floorUnitId", "tenantName");
+  let doc = await WorkPermit.findOne({
+    contractorApplicationId,
+    isDeleted: false,
+  });
 
-    if (!workPermit) {
-      return res.status(404).json({
-        success: false,
-        message: "Work Permit not found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: workPermit,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+  if (!doc) {
+    doc = await WorkPermit.create({ contractorApplicationId });
   }
-};
 
-// update documnet status
-exports.updateWorkPermitFileStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
+  // safe init
+  if (!doc.documents) doc.documents = {};
+  if (!doc.documents[documentType]) doc.documents[documentType] = [];
 
-    const documnetType = req.body.documentType;
-    const status = req.body.status;
-    const approvedBy = req.body.approvedBy;
-    const rejectionReason = req.body.rejectionReason;
+  const files = doc.documents[documentType];
 
-    const workPermit = await WorkPermit.findById(id);
+  files.forEach((f) => (f.isLatest = false));
 
-    if (!workPermit || workPermit.isDeleted) {
-      return res.status(404).json({
-        success: false,
-        message: "Work Permit not found",
-      });
-    }
+  const lastVersion = files[files.length - 1];
 
-    if (!workPermit.documents[documnetType]) {
-      return res.status(404).json({
-        success: false,
-        message: "Inavlid document type",
-      });
-    }
+  const newVersion = {
+    versionNumber: lastVersion ? lastVersion.versionNumber + 1 : 1,
+    fileUrl,
+    fileName,
+    isLatest: true,
+    status: "PENDING",
+  };
 
-    // update status
-    workPermit.documents[documnetType].status = status;
-    workPermit.documents[documnetType].approvedBy = approvedBy;
-    workPermit.documents[documnetType].rejectionReason = rejectionReason;
-    workPermit.documents[documnetType].approvedAt =
-      status === "APPROVED" ? new Date() : null;
+  files.push(newVersion);
 
-    await workPermit.save();
+  await doc.save();
 
-    return res.status(200).json({
-      success: true,
-      message: "File updated successfully",
-      data: workPermit,
-    });
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
+  res.status(200).json({
+    success: true,
+    message: "Work permit document submitted",
+    data: {
+      workPermitId: doc._id,
+      version: newVersion,
+    },
+  });
+});
+
+//Get All Latest Documents
+exports.getAllWorkPermit = catchAsync(async (req, res, next) => {
+  const { contractorApplicationId } = req.query;
+
+  const doc = await WorkPermit.findOne({
+    contractorApplicationId,
+    isDeleted: false,
+  });
+
+  if (!doc) {
+    return next(new ErrorHandler("No documents found", 404));
   }
-};
 
-// update single file
-exports.updateSingleWorkPermitFile = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { documentType, file } = req.body;
+  const getLatest = (arr) => arr?.find((f) => f.isLatest) || null;
 
-    const workPermit = await WorkPermit.findById(id);
+  const result = {};
 
-    if (!workPermit || workPermit.isDeleted) {
-      return res.status(404).json({
-        success: false,
-        message: "Work Permit not found",
-      });
-    }
-
-    // validate document type
-    if (!workPermit.documents[documentType]) {
-      return res.status(404).json({
-        success: false,
-        message: "Inavlid document type",
-      });
-    }
-
-    //update file
-    workPermit[documentType].file = file;
-
-    // resest to default state
-    workPermit.documents[documentType].status = "PENDING";
-    workPermit.documents[documentType].approvedBy = null;
-    workPermit.documents[documentType].rejectionReason = null;
-    workPermit.documents[documentType].approvedAt = null;
-
-    await workPermit.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "File updated successfully",
-      data: workPermit,
-    });
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
+  for (let key of allowedDocs) {
+    result[key] = getLatest(doc.documents?.[key]);
   }
-};
 
-// delete work permit
-exports.deleteWorkPermit = async (req, res) => {
-  const id = req.params.id;
+  res.status(200).json({
+    success: true,
+    data: result,
+  });
+});
 
-  try {
-    const workPermit = await WorkPermit.findOneAndUpdate(
-      { _id: id, isDeleted: false },
-      { isDeleted: true, deletedAt: new Date() },
-      { new: true },
-    );
+//Approve / Reject
+exports.reviewWorkPermit = catchAsync(async (req, res, next) => {
+  const {
+    contractorApplicationId,
+    documentType,
+    versionNumber,
+    status,
+    rejectionReason,
+  } = req.body;
 
-    if (!workPermit) {
-      return res.status(404).json({
-        success: false,
-        message: "Work Permit not found",
-      });
-    }
+  const doc = await WorkPermit.findOne({
+    contractorApplicationId,
+    isDeleted: false,
+  });
 
-    return res.status(200).json({
-      success: true,
-      message: "Work Permit deleted successfully",
-      data: workPermit,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+  if (!doc) {
+    return next(new ErrorHandler("Work permit not found", 404));
   }
-};
+
+  const files = doc.documents?.[documentType] || [];
+
+  const file = files.find((f) => f.versionNumber === versionNumber);
+
+  if (!file) {
+    return next(new ErrorHandler("Version not found", 404));
+  }
+
+  file.status = status;
+  file.approvedAt = new Date();
+  file.approvedBy = req.user?._id;
+
+  if (status === "REJECTED") {
+    file.rejectionReason = rejectionReason;
+  }
+
+  await doc.save();
+
+  res.status(200).json({
+    success: true,
+    message: `Document ${status}`,
+  });
+});
+
+//Get Versions
+exports.getWorkPermitVersions = catchAsync(async (req, res, next) => {
+  const { contractorApplicationId, documentType } = req.query;
+
+  const doc = await WorkPermit.findOne({
+    contractorApplicationId,
+    isDeleted: false,
+  });
+
+  if (!doc) {
+    return next(new ErrorHandler("Work permit not found", 404));
+  }
+
+  const files = doc.documents?.[documentType] || [];
+
+  res.status(200).json({
+    success: true,
+    totalVersions: files.length,
+    data: files,
+  });
+});
+
+//Reupload (only if rejected)
+exports.reuploadWorkPermit = catchAsync(async (req, res, next) => {
+  const { contractorApplicationId, documentType, fileUrl, fileName } = req.body;
+
+  const doc = await WorkPermit.findOne({
+    contractorApplicationId,
+    isDeleted: false,
+  });
+
+  if (!doc) {
+    return next(new ErrorHandler("Work permit not found", 404));
+  }
+
+  const files = doc.documents?.[documentType] || [];
+
+  const latest = files.find((f) => f.isLatest);
+
+  if (!latest || latest.status !== "REJECTED") {
+    return next(new ErrorHandler("Only rejected file can be reuploaded", 400));
+  }
+
+  files.forEach((f) => (f.isLatest = false));
+
+  const newVersion = {
+    versionNumber: latest.versionNumber + 1,
+    fileUrl,
+    fileName,
+    uploadedBy: req.user?._id,
+    isLatest: true,
+    status: "PENDING",
+  };
+
+  files.push(newVersion);
+
+  await doc.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Reuploaded successfully",
+    data: newVersion,
+  });
+});
