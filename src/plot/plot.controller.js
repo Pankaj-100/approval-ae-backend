@@ -326,7 +326,7 @@ exports.createProject = catchAsync(async (req, res, next) => {
       allFloors.push({
         ...newFloor.toObject(),
         units: createdUnits,
-        approvedDocuments: approvedDocs, // ✅ ARRAY
+        approvedDocuments: approvedDocs,
       });
     }
   }
@@ -352,3 +352,102 @@ exports.createProject = catchAsync(async (req, res, next) => {
     },
   });
 });
+
+exports.getAllProjects = async (req, res) => {
+  try {
+    let { page = 1, per_page = 10, search = "" } = req.query;
+
+    page = parseInt(page);
+    per_page = parseInt(per_page);
+
+    //Get all buildings
+    const filter = { isDeleted: false };
+
+    if (search) {
+      filter.buildingName = { $regex: search, $options: "i" };
+    }
+
+    const buildings = await BuildingDetails.find(filter)
+      .skip((page - 1) * per_page)
+      .limit(per_page)
+      .sort({ createdAt: -1 });
+
+    const totalRecords = await BuildingDetails.countDocuments(filter);
+
+    //Map projects
+    const projects = await Promise.all(
+      buildings.map(async (building) => {
+        //Plot
+        const plot = await PlotDetails.findById(building.plotId);
+
+        //Landlord
+        const landlord = await User.findById(plot.landlordId)
+          .select("name email mobile_number")
+          .lean();
+
+        //Counts
+        const totalFloors = await FloorDetails.countDocuments({
+          buildingId: building._id,
+          isDeleted: false,
+        });
+
+        const totalUnits = await UnitDetails.countDocuments({
+          buildingId: building._id,
+          isDeleted: false,
+        });
+
+        return {
+          project_id: building._id,
+
+          landlord: landlord
+            ? {
+                landlord_id: landlord._id,
+                name: landlord.name,
+                email: landlord.email,
+                mobile_number: landlord.mobile_number,
+              }
+            : null,
+
+          plot: plot
+            ? {
+                plot_id: plot._id,
+                plot_number: plot.plotNumber,
+              }
+            : null,
+
+          building: {
+            building_id: building._id,
+            building_name: building.buildingName,
+            building_sqft: building.buildingSqft,
+            building_usage: building.buildingUsage,
+          },
+
+          total_floors: totalFloors,
+          total_units: totalUnits,
+          created_at: building.createdAt,
+        };
+      }),
+    );
+
+    //Response
+    return res.status(200).json({
+      success: true,
+      message: "All projects fetched successfully",
+      data: {
+        projects,
+        pagination: {
+          current_page: page,
+          per_page,
+          total_records: totalRecords,
+          total_pages: Math.ceil(totalRecords / per_page),
+        },
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};

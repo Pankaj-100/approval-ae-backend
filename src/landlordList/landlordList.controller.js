@@ -12,7 +12,7 @@ exports.getLandlordProjects = async (req, res) => {
     page = parseInt(page);
     per_page = parseInt(per_page);
 
-    //Check landlord exists
+    //Check landlord
     const landlord = await User.findById(landlord_id);
     if (!landlord || landlord.isDeleted) {
       return res.status(404).json({
@@ -21,67 +21,68 @@ exports.getLandlordProjects = async (req, res) => {
       });
     }
 
-    //Filter
-    const filter = {
+    //Get plots
+    const plotFilter = {
       landlordId: landlord_id,
       isDeleted: false,
     };
 
-    //Search
     if (search) {
-      filter.$or = [{ plotNumber: { $regex: search, $options: "i" } }];
+      plotFilter.$or = [{ plotNumber: { $regex: search, $options: "i" } }];
     }
 
-    //Total records
-    const totalRecords = await PlotDetails.countDocuments(filter);
+    const plots = await PlotDetails.find(plotFilter);
 
-    //Get plots
-    const plots = await PlotDetails.find(filter)
+    //Get ALL buildings of those plots
+    const buildings = await BuildingDetails.find({
+      plotId: { $in: plots.map((p) => p._id) },
+      isDeleted: false,
+    })
       .skip((page - 1) * per_page)
       .limit(per_page)
       .sort({ createdAt: -1 });
 
+    const totalRecords = await BuildingDetails.countDocuments({
+      plotId: { $in: plots.map((p) => p._id) },
+      isDeleted: false,
+    });
+
     //Map projects
     const projects = await Promise.all(
-      plots.map(async (plot) => {
-        // 👉 Get buildings of this plot
-        const buildings = await BuildingDetails.find({
-          plotId: plot._id,
-          isDeleted: false,
-        });
+      buildings.map(async (building) => {
+        const plot = plots.find(
+          (p) => p._id.toString() === building.plotId.toString(),
+        );
 
-        //Get total floors
         const totalFloors = await FloorDetails.countDocuments({
-          plotId: plot._id,
+          buildingId: building._id,
           isDeleted: false,
         });
 
-        //Get total units
         const totalUnits = await Unit.countDocuments({
-          plotId: plot._id,
+          buildingId: building._id,
           isDeleted: false,
         });
 
         return {
-          project_id: plot._id,
+          project_id: building._id,
+          plot_id: plot._id,
           plot_number: plot.plotNumber,
 
-          //Buildings array
-          buildings: buildings.map((b) => ({
-            building_id: b._id,
-            building_name: b.buildingName,
-            building_sqft: b.buildingSqft,
-            building_usage: b.buildingUsage,
-          })),
+          building: {
+            building_id: building._id,
+            building_name: building.buildingName,
+            building_sqft: building.buildingSqft,
+            building_usage: building.buildingUsage,
+          },
 
           total_floors: totalFloors,
           total_units: totalUnits,
-          created_at: plot.createdAt,
+          created_at: building.createdAt,
         };
       }),
     );
 
-    //Response
     return res.json({
       status: true,
       message: "Landlord projects fetched successfully",
