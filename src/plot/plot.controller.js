@@ -5,168 +5,11 @@ const Role = require("../modules/role/role.model");
 const UnitDetails = require("../floor-unit/floor-unit.model");
 const FloorDetails = require("../floor/floor.model");
 const BuildingDetails = require("../Building/building.model");
+const ApprovedDocument = require("../approved-documents/approved-documents.model");
 const ErrorHandler = require("../../utils/errorHandler");
 const catchAsync = require("../../utils/catchAsyncError");
 
 const awsUrl = process.env.AWS_BASE_URL;
-
-exports.createProject = catchAsync(async (req, res, next) => {
-  const { landlordId, landlord, plot, buildings } = req.body;
-
-  // VALIDATION
-
-  if (!plot) {
-    return next(new ErrorHandler("Plot data is required", 400));
-  }
-
-  if (!buildings || !Array.isArray(buildings) || buildings.length === 0) {
-    return next(new ErrorHandler("At least one building is required", 400));
-  }
-
-  // LANDLORD
-
-  const role = await Role.findOne({ name: "LANDLORD" });
-  if (!role) return next(new ErrorHandler("Landlord role not found", 404));
-
-  let finalLandlord;
-
-  if (landlordId) {
-    const user = await User.findById(landlordId);
-    if (!user || user.isDeleted) {
-      return next(new ErrorHandler("Invalid landlordId", 400));
-    }
-    finalLandlord = user;
-  } else {
-    if (!landlord?.name || !landlord?.email || !landlord?.mobile_number) {
-      return next(new ErrorHandler("Landlord details required", 400));
-    }
-
-    const exist = await User.findOne({
-      $or: [
-        { email: landlord.email },
-        { mobile_number: landlord.mobile_number },
-      ],
-      role: role._id,
-      isDeleted: false,
-    });
-
-    if (exist) {
-      return next(new ErrorHandler("Landlord already exists", 400));
-    }
-
-    finalLandlord = await User.create({
-      name: landlord.name,
-      email: landlord.email,
-      mobile_number: landlord.mobile_number,
-      role: role._id,
-      password: "1234",
-      isVerified: true,
-    });
-  }
-
-  // CREATE PLOT
-
-  const createdPlot = await PlotDetails.create({
-    ...plot,
-    landlordId: finalLandlord._id,
-  });
-
-  const allBuildings = [];
-
-  // CREATE BUILDINGS → FLOORS → UNITS
-
-  for (let building of buildings) {
-    if (!building.buildingName || !building.buildingSqft) {
-      return next(new ErrorHandler("Invalid building data", 400));
-    }
-
-    // CREATE BUILDING
-    const newBuilding = await BuildingDetails.create({
-      plotId: createdPlot._id,
-      buildingName: building.buildingName,
-      buildingSqft: building.buildingSqft,
-      buildingUsage: building.buildingUsage,
-    });
-
-    let allFloors = [];
-
-    // FLOORS
-    if (building.floors && building.floors.length > 0) {
-      for (let floor of building.floors) {
-        if (
-          !floor.floorName ||
-          floor.totalFloorAreaSqm == null ||
-          floor.circulationAreaSqm == null
-        ) {
-          return next(new ErrorHandler("Invalid floor data", 400));
-        }
-
-        const newFloor = await FloorDetails.create({
-          buildingId: newBuilding._id,
-          floorName: floor.floorName,
-          totalFloorAreaSqm: floor.totalFloorAreaSqm,
-          circulationAreaSqm: floor.circulationAreaSqm,
-          architecturalDrawing: floor.architecturalDrawing || null,
-          structuralDrawing: floor.structuralDrawing || null,
-          mepDrawing: floor.mepDrawing || null,
-        });
-
-        let createdUnits = [];
-
-        // UNITS
-        if (floor.units && floor.units.length > 0) {
-          for (let unit of floor.units) {
-            if (!unit.unitId || !unit.usageType || !unit.fitOutWork) {
-              return next(new ErrorHandler("Invalid unit data", 400));
-            }
-
-            const newUnit = await UnitDetails.create({
-              buildingId: newBuilding._id,
-              floorId: newFloor._id,
-              unitId: unit.unitId,
-              tenantName: unit.tenantName || null,
-              usageType: unit.usageType,
-              fitOutWork: unit.fitOutWork,
-              totalSqm: unit.totalSqm,
-              electricMeter: unit.electricMeter || null,
-            });
-
-            createdUnits.push(newUnit);
-          }
-        }
-
-        allFloors.push({
-          ...newFloor.toObject(),
-          units: createdUnits,
-        });
-      }
-    }
-
-    allBuildings.push({
-      ...newBuilding.toObject(),
-      floors: allFloors,
-    });
-  }
-
-  // RESPONSE
-
-  const populateLandlord = await User.findById(finalLandlord._id)
-    .populate("role", "name")
-    .select("-password")
-    .lean();
-
-  populateLandlord.role = populateLandlord.role.name;
-
-  res.status(201).json({
-    success: true,
-    message: "Project created successfully",
-    data: {
-      landlord: populateLandlord,
-      plot: createdPlot,
-      buildings: allBuildings,
-    },
-  });
-});
 
 exports.createPlot = async (req, res) => {
   try {
@@ -351,3 +194,161 @@ exports.deletePlot = async (req, res) => {
     });
   }
 };
+
+exports.createProject = catchAsync(async (req, res, next) => {
+  const { landlordId, landlord, plot, building } = req.body;
+
+  //VALIDATION
+  if (!plot) {
+    return next(new ErrorHandler("Plot data is required", 400));
+  }
+
+  if (!building) {
+    return next(new ErrorHandler("Building data is required", 400));
+  }
+
+  //LANDLORD
+  const role = await Role.findOne({ name: "LANDLORD" });
+  if (!role) return next(new ErrorHandler("Landlord role not found", 404));
+
+  let finalLandlord;
+
+  if (landlordId) {
+    const user = await User.findById(landlordId);
+    if (!user || user.isDeleted) {
+      return next(new ErrorHandler("Invalid landlordId", 400));
+    }
+    finalLandlord = user;
+  } else {
+    if (!landlord?.name || !landlord?.email || !landlord?.mobile_number) {
+      return next(new ErrorHandler("Landlord details required", 400));
+    }
+
+    const exist = await User.findOne({
+      $or: [
+        { email: landlord.email },
+        { mobile_number: landlord.mobile_number },
+      ],
+      role: role._id,
+      isDeleted: false,
+    });
+
+    if (exist) {
+      return next(new ErrorHandler("Landlord already exists", 400));
+    }
+
+    finalLandlord = await User.create({
+      name: landlord.name,
+      email: landlord.email,
+      mobile_number: landlord.mobile_number,
+      role: role._id,
+      password: "1234",
+      isVerified: true,
+    });
+  }
+
+  //CREATE PLOT
+  const createdPlot = await PlotDetails.create({
+    landlordId: finalLandlord._id,
+    plotNumber: plot.plotNumber,
+
+    documents: {
+      siteAffectionPlan: plot?.documents?.siteAffectionPlan || null,
+      dmCompletionCertificate: plot?.documents?.dmCompletionCertificate || null,
+      civilDefenseCertificate: plot?.documents?.civilDefenseCertificate || null,
+      amcContract: plot?.documents?.amcContract || null,
+      dewaApprovedLoadSchedule:
+        plot?.documents?.dewaApprovedLoadSchedule || null,
+    },
+  });
+
+  //CREATE BUILDING
+  const newBuilding = await BuildingDetails.create({
+    plotId: createdPlot._id,
+    buildingName: building.buildingName,
+    buildingSqft: building.buildingSqft,
+    buildingUsage: building.buildingUsage,
+  });
+
+  let allFloors = [];
+
+  //FLOORS LOOP
+  if (building.floors && building.floors.length > 0) {
+    for (let floor of building.floors) {
+      const newFloor = await FloorDetails.create({
+        buildingId: newBuilding._id,
+        floorName: floor.floorName,
+        totalFloorAreaSqm: floor.totalFloorAreaSqm,
+        circulationAreaSqm: floor.circulationAreaSqm,
+        architecturalDrawing: floor.architecturalDrawing || null,
+        structuralDrawing: floor.structuralDrawing || null,
+        mepDrawing: floor.mepDrawing || null,
+      });
+
+      let createdUnits = [];
+
+      //UNITS
+      if (floor.units && floor.units.length > 0) {
+        for (let unit of floor.units) {
+          const newUnit = await UnitDetails.create({
+            buildingId: newBuilding._id,
+            floorId: newFloor._id,
+            unitId: unit.unitId,
+            tenantName: unit.tenantName || null,
+            usageType: unit.usageType,
+            fitOutWork: unit.fitOutWork,
+            totalSqm: unit.totalSqm,
+            electricMeter: unit.electricMeter || null,
+          });
+
+          createdUnits.push(newUnit);
+        }
+      }
+
+      //PPROVED DOCUMENT ARRAY
+      const approvedDocs = [];
+
+      const approvedDoc = await ApprovedDocument.create({
+        floorId: newFloor._id,
+        architecturalDrawing: {
+          url: floor?.approvedDocuments?.architecturalDrawing || null,
+        },
+        structuralDrawing: {
+          url: floor?.approvedDocuments?.structuralDrawing || null,
+        },
+        mepDrawing: {
+          url: floor?.approvedDocuments?.mepDrawing || null,
+        },
+      });
+
+      approvedDocs.push(approvedDoc);
+
+      allFloors.push({
+        ...newFloor.toObject(),
+        units: createdUnits,
+        approvedDocuments: approvedDocs, // ✅ ARRAY
+      });
+    }
+  }
+
+  //RESPONSE
+  const populateLandlord = await User.findById(finalLandlord._id)
+    .populate("role", "name")
+    .select("-password")
+    .lean();
+
+  populateLandlord.role = populateLandlord.role.name;
+
+  res.status(201).json({
+    success: true,
+    message: "Project created successfully",
+    data: {
+      landlord: populateLandlord,
+      plot: createdPlot,
+      building: {
+        ...newBuilding.toObject(),
+        floors: allFloors,
+      },
+    },
+  });
+});

@@ -2,12 +2,6 @@ const mongoose = require("mongoose");
 
 const floorDetailsSchema = new mongoose.Schema(
   {
-    // plotId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "PlotDetails",
-    //   required: true,
-    // },
-
     buildingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "BuildingDetails",
