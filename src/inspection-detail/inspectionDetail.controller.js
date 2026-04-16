@@ -1,199 +1,257 @@
 const InspectionDetail = require("./inspectionDetail.model");
-const FloorDetails = require("../floor/floor.model");
-const UnitDetails = require("../floor-unit/floor-unit.model");
+const catchAsync = require("../../utils/catchAsyncError");
+const ErrorHandler = require("../../utils/errorHandler");
 
-// create inspection detail
-exports.createInspectionDetail = async (req, res) => {
-  try {
-    const { floorId, floorUnitId } = req.body;
+//Allowed Docs
+const allowedDocs = [
+  "sitePhoto",
+  "certificate",
+  "dcdCompletionCertificate",
+  "dmCompletionCertificate",
+  "architecturalAsBuilt",
+  "mepAsBuilt",
+  "structuralAsBuilt",
+  "testCertificates",
+  "commonAreaDamageClearance",
+  "revisedAuthorityDrawings",
+];
 
-    // check floor exits and not deleted
-    const floor = await FloorDetails.findOne({
-      _id: floorId,
-      isDeleted: false,
-    });
-
-    if (!floor) {
-      return res.status(404).json({
-        success: false,
-        message: "Floor not found",
-      });
-    }
-
-    // check floor unit exits and not deleted
-    const floorUnit = await UnitDetails.findOne({
-      _id: floorUnitId,
-      isDeleted: false,
-    });
-
-    if (!floorUnit) {
-      return res.status(404).json({
-        success: false,
-        message: "Floor Unit not found",
-      });
-    }
-
-    // create inspection detail
-    const inspectionDetail = await InspectionDetail.create(req.body);
-
-    return res.status(201).json({
-      success: true,
-      message: "Inspection Detail created successfully",
-      data: inspectionDetail,
-    });
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
+//Validation based on inspection type
+const validateDocumentByInspectionType = (inspectionType, documentType) => {
+  if (inspectionType === "Final_Inspection") {
+    return allowedDocs.includes(documentType);
   }
+
+  // FIRST FIX restricted
+  const limitedDocs = ["sitePhoto", "certificate"];
+  return limitedDocs.includes(documentType);
 };
 
-// get all inspection details
-exports.getAllInspectionDetails = async (req, res) => {
-  try {
-    const page = Math.max(parseInt(req.query.page) || 1, 1);
-    const limit = Math.min(parseInt(req.query.limit) || 10, 10);
-    const skip = (page - 1) * limit;
+//Submit
+exports.submitInspection = catchAsync(async (req, res, next) => {
+  const {
+    contractorApplicationId,
+    documentType,
+    fileUrl,
+    fileName,
+    inspectionType,
+  } = req.body;
 
-    const totalRecords = await InspectionDetail.countDocuments({
-      isDeleted: false,
-    });
+  if (!contractorApplicationId || !documentType || !fileUrl) {
+    return next(new ErrorHandler("Missing required fields", 400));
+  }
 
-    const inspectionDetails = await InspectionDetail.find({
-      isDeleted: false,
-    })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+  let doc = await InspectionDetail.findOne({
+    contractorApplicationId,
+    isDeleted: false,
+  });
 
-    const totalPages = Math.ceil(totalRecords / limit);
+  //create new
+  if (!doc) {
+    if (!inspectionType) {
+      return next(new ErrorHandler("inspectionType is required", 400));
+    }
 
-    return res.status(200).json({
-      success: true,
-      totalRecords,
-      totalPages,
-      currentPage: page,
-      data: inspectionDetails,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
+    doc = await InspectionDetail.create({
+      contractorApplicationId,
+      inspectionType,
     });
   }
-};
 
-// update inspection file status
-exports.updateInspectionFileStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { documentType, status, approvedBy, rejectionReason } = req.body;
+  const currentInspectionType = doc.inspectionType;
 
-    const inspectionDetail = await InspectionDetail.findById(id);
-
-    if (!inspectionDetail || inspectionDetail.isDeleted) {
-      return res.status(404).json({
-        success: false,
-        message: "Inspection Detail not found",
-      });
-    }
-
-    if (inspectionDetail.documents[documentType]) {
-      return res.status(404).json({
-        success: false,
-        message: "Inavlid document type",
-      });
-    }
-
-    // update status and approved by and rejection reason
-    inspectionDetail.documents[documentType].status = status;
-    inspectionDetail.documents[documentType].approvedBy = approvedBy;
-    inspectionDetail.documents[documentType].rejectionReason = rejectionReason;
-    inspectionDetail.documents[documentType].approvedAt =
-      status === "APPROVED" ? Date.now() : null;
-
-    await inspectionDetail.save();
-    return res.status(200).json({ success: true, data: inspectionDetail });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-// update single file
-exports.updateSingleInspectionFile = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { documentType, file } = req.body;
-
-    const inspectionDetail = await InspectionDetail.findById(id);
-
-    if (!inspectionDetail || inspectionDetail.isDeleted) {
-      return res.status(404).json({
-        success: false,
-        message: "Inspection Detail not found",
-      });
-    }
-
-    if (inspectionDetail.documents[documentType]) {
-      return res.status(404).json({
-        success: false,
-        message: "Inavlid document type",
-      });
-    }
-
-    //update file
-    inspectionDetail.documents[documentType].file = file;
-
-    // resest status
-    inspectionDetail.documents[documentType].status = "PENDING";
-    inspectionDetail.documents[documentType].approvedBy = null;
-    inspectionDetail.documents[documentType].rejectionReason = null;
-    inspectionDetail.documents[documentType].approvedAt = null;
-
-    await inspectionDetail.save();
-    return res.status(200).json({
-      success: true,
-      data: inspectionDetail,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-// delete inspection detail
-exports.deleteInspectionDetail = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const inspectionDetail = await InspectionDetail.findOneAndUpdate(
-      { _id: id, isDeleted: false },
-      { isDeleted: true, deletedAt: new Date() },
-      { new: true },
+  //validation
+  if (!validateDocumentByInspectionType(currentInspectionType, documentType)) {
+    return next(
+      new ErrorHandler(
+        `Document ${documentType} not allowed for ${currentInspectionType}`,
+        400,
+      ),
     );
-
-    if (!inspectionDetail) {
-      return res.status(404).json({
-        success: false,
-        message: "Inspection Detail not found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Inspection Detail deleted successfully",
-      data: inspectionDetail,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+
+  // safe init
+  if (!doc.documents) doc.documents = {};
+  if (!doc.documents[documentType]) doc.documents[documentType] = [];
+
+  const files = doc.documents[documentType];
+
+  const latest = files.find((f) => f.isLatest);
+
+  //Approved lock
+  if (latest && latest.status === "APPROVED") {
+    return next(new ErrorHandler("Approved document cannot be modified", 400));
+  }
+
+  // mark old versions
+  files.forEach((f) => (f.isLatest = false));
+
+  const lastVersion = files[files.length - 1];
+
+  const newVersion = {
+    versionNumber: lastVersion ? lastVersion.versionNumber + 1 : 1,
+    fileUrl,
+    fileName,
+    isLatest: true,
+    status: "PENDING",
+  };
+
+  files.push(newVersion);
+
+  await doc.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Inspection document submitted",
+    data: newVersion,
+  });
+});
+
+//Get All Latest Documents
+exports.getAllInspection = catchAsync(async (req, res, next) => {
+  const { contractorApplicationId } = req.query;
+
+  const doc = await InspectionDetail.findOne({
+    contractorApplicationId,
+    isDeleted: false,
+  });
+
+  if (!doc) {
+    return next(new ErrorHandler("No inspection documents found", 404));
+  }
+
+  const getLatest = (arr) => arr?.find((f) => f.isLatest) || null;
+
+  const result = {};
+
+  for (let key of allowedDocs) {
+    result[key] = getLatest(doc.documents?.[key]);
+  }
+
+  res.status(200).json({
+    success: true,
+    data: result,
+  });
+});
+
+//Review (Approve / Reject)
+exports.reviewInspection = catchAsync(async (req, res, next) => {
+  const {
+    contractorApplicationId,
+    documentType,
+    versionNumber,
+    status,
+    rejectionReason,
+  } = req.body;
+
+  if (!["APPROVED", "REJECTED"].includes(status)) {
+    return next(new ErrorHandler("Invalid status", 400));
+  }
+
+  const doc = await InspectionDetail.findOne({
+    contractorApplicationId,
+    isDeleted: false,
+  });
+
+  if (!doc) {
+    return next(new ErrorHandler("Inspection not found", 404));
+  }
+
+  const files = doc.documents?.[documentType] || [];
+
+  const file = files.find((f) => f.versionNumber === versionNumber);
+
+  if (!file) {
+    return next(new ErrorHandler("Version not found", 404));
+  }
+
+  file.status = status;
+  file.approvedAt = new Date();
+  file.approvedBy = req.user?._id;
+
+  if (status === "REJECTED") {
+    file.rejectionReason = rejectionReason;
+  }
+
+  await doc.save();
+
+  res.status(200).json({
+    success: true,
+    message: `Inspection document ${status}`,
+  });
+});
+
+//Get Versions
+exports.getInspectionVersions = catchAsync(async (req, res, next) => {
+  const { contractorApplicationId, documentType } = req.query;
+
+  const doc = await InspectionDetail.findOne({
+    contractorApplicationId,
+    isDeleted: false,
+  });
+
+  if (!doc) {
+    return next(new ErrorHandler("Inspection not found", 404));
+  }
+
+  const files = doc.documents?.[documentType] || [];
+
+  res.status(200).json({
+    success: true,
+    totalVersions: files.length,
+    data: files,
+  });
+});
+
+//Reupload (ONLY if rejected + NOT approved)
+exports.reuploadInspection = catchAsync(async (req, res, next) => {
+  const { contractorApplicationId, documentType, fileUrl, fileName } = req.body;
+
+  const doc = await InspectionDetail.findOne({
+    contractorApplicationId,
+    isDeleted: false,
+  });
+
+  if (!doc) {
+    return next(new ErrorHandler("Inspection not found", 404));
+  }
+
+  const files = doc.documents?.[documentType] || [];
+
+  const latest = files.find((f) => f.isLatest);
+
+  if (!latest) {
+    return next(new ErrorHandler("No document found", 404));
+  }
+
+  //Approved lock
+  if (latest.status === "APPROVED") {
+    return next(
+      new ErrorHandler("Approved document cannot be reuploaded", 400),
+    );
+  }
+
+  if (latest.status !== "REJECTED") {
+    return next(new ErrorHandler("Only rejected file can be reuploaded", 400));
+  }
+
+  files.forEach((f) => (f.isLatest = false));
+
+  const newVersion = {
+    versionNumber: latest.versionNumber + 1,
+    fileUrl,
+    fileName,
+    isLatest: true,
+    status: "PENDING",
+  };
+
+  files.push(newVersion);
+
+  await doc.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Reuploaded successfully",
+    data: newVersion,
+  });
+});

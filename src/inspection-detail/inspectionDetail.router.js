@@ -1,19 +1,19 @@
 const express = require("express");
 
 const {
-  getAllInspectionDetails,
-  createInspectionDetail,
-  deleteInspectionDetail,
-  updateInspectionFileStatus,
-  updateSingleInspectionFile,
+  submitInspection,
+  getAllInspection,
+  getInspectionVersions,
+  reviewInspection,
+  reuploadInspection,
 } = require("./inspectionDetail.controller");
 
 const route = express.Router();
 
-route.get("/", getAllInspectionDetails);
-route.post("/", createInspectionDetail);
-route.put("/:id", updateInspectionFileStatus);
-route.put("single-file/:id", updateSingleInspectionFile);
-route.delete("/:id", deleteInspectionDetail);
+route.post("/submit", submitInspection);
+route.get("/all", getAllInspection);
+route.get("/versions", getInspectionVersions);
+route.post("/review", reviewInspection);
+route.post("/reupload", reuploadInspection);
 
 module.exports = route;
