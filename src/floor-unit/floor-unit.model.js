@@ -20,12 +20,6 @@ const unitSchema = new mongoose.Schema(
       trim: true,
     },
 
-    tenantName: {
-      type: String,
-      trim: true,
-      default: null,
-    },
-
     usageType: {
       type: String,
       required: true,
@@ -33,7 +27,6 @@ const unitSchema = new mongoose.Schema(
 
     fitOutWork: {
       type: String,
-
       required: true,
     },
 
@@ -43,11 +36,28 @@ const unitSchema = new mongoose.Schema(
       min: 0,
     },
 
-    electricMeter: {
-      type: String,
-      trim: true,
-      default: null,
+    availableSqm: {
+      type: Number,
+      min: 0,
     },
+
+    usedSqm: {
+      type: Number,
+      min: 0,
+    },
+
+    status: {
+      type: String,
+      enum: ["AVAILABLE", "CONSUMED"],
+      default: "AVAILABLE",
+    },
+
+    parentUnits: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Unit",
+      },
+    ],
 
     isDeleted: {
       type: Boolean,
@@ -56,6 +66,5 @@ const unitSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
-unitSchema.index({ floorId: 1, unitId: 1 }, { unique: true });
 
 module.exports = mongoose.model("Unit", unitSchema);

@@ -1,9 +1,16 @@
-const UnitDetails = require("./floor-unit.model");
+const Unit = require("./floor-unit.model");
 
 //create unit
+
 exports.createUnit = async (req, res) => {
   try {
-    const unit = await UnitDetails.create(req.body);
+    const data = req.body;
+
+    data.availableSqm = data.totalSqm;
+    data.usedSqm = 0;
+    data.status = "AVAILABLE";
+
+    const unit = await Unit.create(data);
 
     res.status(201).json({
       success: true,
@@ -23,7 +30,7 @@ exports.getUnitsByFloorId = async (req, res) => {
   try {
     const { floorId } = req.params;
 
-    const units = await UnitDetails.find({
+    const units = await Unit.find({
       floorId,
       isDeleted: false,
     }).sort({ createdAt: 1 });
@@ -45,7 +52,7 @@ exports.getUnitsByPlotId = async (req, res) => {
   try {
     const { plotId } = req.params;
 
-    const units = await UnitDetails.find({
+    const units = await Unit.find({
       plotId,
       isDeleted: false,
     }).sort({ createdAt: -1 });
@@ -66,7 +73,7 @@ exports.getUnitsByPlotId = async (req, res) => {
 exports.getUnitWithFloor = async (req, res) => {
   try {
     const { unitId } = req.params;
-    const unit = await UnitDetails.findOne({
+    const unit = await Unit.findOne({
       _id: unitId,
       isDeleted: false,
     }).populate("floorId");
@@ -95,7 +102,7 @@ exports.updateUnit = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const unit = await UnitDetails.findByIdAndUpdate(id, req.body, {
+    const unit = await Unit.findByIdAndUpdate(id, req.body, {
       new: true,
     });
 
@@ -124,7 +131,7 @@ exports.getUnitById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const unit = await UnitDetails.findOne({
+    const unit = await Unit.findOne({
       _id: id,
       isDeleted: false,
     });
@@ -151,7 +158,7 @@ exports.getUnitById = async (req, res) => {
 //get all units
 exports.getAllUnits = async (req, res) => {
   try {
-    const units = await UnitDetails.find({ isDeleted: false }).sort({
+    const units = await Unit.find({ isDeleted: false }).sort({
       createdAt: -1,
     });
 
@@ -172,7 +179,7 @@ exports.deleteUnit = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const unit = await UnitDetails.findByIdAndUpdate(
+    const unit = await Unit.findByIdAndUpdate(
       id,
       { isDeleted: true },
       { new: true },

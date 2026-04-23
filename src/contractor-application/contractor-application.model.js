@@ -1,53 +1,61 @@
 const mongoose = require("mongoose");
 
-// Sub-schema for a single document's version history
+// ================= DOCUMENT VERSION =================
 const documentVersionSchema = new mongoose.Schema(
   {
-    versionNumber: {
-      type: Number,
-      required: true,
-    },
-    fileUrl: {
-      type: String,
-      required: true,
-    },
-    fileName: {
-      type: String,
-    },
+    versionNumber: { type: Number, required: true },
+    fileUrl: { type: String, required: true },
+    fileName: { type: String },
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
-    uploadedAt: {
-      type: Date,
-      default: Date.now,
-    },
-    remarks: {
-      type: String,
-      default: null,
-    },
+    uploadedAt: { type: Date, default: Date.now },
+    remarks: { type: String, default: null },
   },
   { _id: false },
 );
 
+// ================= VERSION SCHEMA =================
 const versionSchema = new mongoose.Schema(
   {
-    versionNumber: {
-      type: Number,
-      required: true,
+    versionNumber: { type: Number, required: true },
+
+    usageType: String,
+    totalUnitAreaSqm: Number,
+    areaVariationSqm: Number,
+    hasMezzanine: Boolean,
+    totalUnitAreaAfterMezzanineSqm: Number,
+
+    tenantName: String,
+    tenantMobile: String,
+    tenantEmail: String,
+
+    //REDESIGN ADD
+    redesign: {
+      redesignType: {
+        type: String,
+        enum: ["MERGE", "SPLIT", "SPLIT_AND_MERGE", "MERGE_AND_SPLIT"],
+      },
+
+      inputUnits: [
+        {
+          unitId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Unit",
+          },
+          area: Number,
+        },
+      ],
+
+      resultUnits: [
+        {
+          name: String,
+          area: Number,
+        },
+      ],
     },
 
-    usageType: { type: String },
-    totalUnitAreaSqm: { type: Number },
-    areaVariationSqm: { type: Number },
-    hasMezzanine: { type: Boolean },
-    totalUnitAreaAfterMezzanineSqm: { type: Number },
-
-    tenantName: { type: String },
-    tenantMobile: { type: String },
-    tenantEmail: { type: String },
-
-    //Each document now maintains its own version history
     documents: {
       ejariDocument: [documentVersionSchema],
       appointmentLetter: [documentVersionSchema],
@@ -72,6 +80,7 @@ const versionSchema = new mongoose.Schema(
   { _id: false },
 );
 
+//SCHEMA
 const contractorApplicationSchema = new mongoose.Schema(
   {
     referenceNumber: {
@@ -85,38 +94,31 @@ const contractorApplicationSchema = new mongoose.Schema(
       ref: "PlotDetails",
       required: true,
     },
-
     floorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "FloorDetails",
       required: true,
     },
-
-    unitId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Unit",
-      required: true,
-    },
-
-    plotNumber: {
-      type: String,
-    },
-
-    buildingName: {
-      type: String,
-    },
-
     buildingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "BuildingDetails",
       required: true,
     },
 
-    floorNumber: {
-      type: String,
+    //OPTIONAL NOW
+    unitId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Unit",
+      required: false,
     },
-    unitNumber: {
+
+    plotNumber: String,
+    buildingName: String,
+    floorNumber: String,
+
+    displayUnit: {
       type: String,
+      required: true,
     },
 
     unitType: {
@@ -125,24 +127,12 @@ const contractorApplicationSchema = new mongoose.Schema(
       default: "Single Unit",
     },
 
-    currentVersion: {
-      type: Number,
-      default: 1,
-    },
-
+    currentVersion: { type: Number, default: 1 },
     versions: [versionSchema],
 
-    isDeleted: {
-      type: Boolean,
-      default: false,
-    },
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true },
-);
-
-contractorApplicationSchema.index(
-  { unitId: 1 },
-  { unique: true, partialFilterExpression: { isDeleted: false } },
 );
 
 module.exports = mongoose.model(
