@@ -293,6 +293,7 @@ exports.getAllApplications = catchAsync(async (req, res, next) => {
     isDeleted: false,
   })
     .populate("buildingId", "buildingName")
+    .populate("unitId", "unitId usageType totalSqm availableSqm usedSqm status")
     .sort({ createdAt: -1 })
     .lean();
 
@@ -596,3 +597,205 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
     next(error);
   }
 });
+
+// resubmit application
+exports.resubmitApplication = catchAsync(async (req, res, next) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { applicationId } = req.params;
+
+    // Only fields provided by user will override previous version
+    const {
+      usageType,
+      totalUnitAreaSqm,
+      areaVariationSqm,
+      hasMezzanine,
+      totalUnitAreaAfterMezzanineSqm,
+
+      tenantName,
+      tenantMobile,
+      tenantEmail,
+
+      ejariDocument,
+      appointmentLetter,
+      fitOutDrawings,
+
+      redesign,
+    } = req.body;
+
+    // ================= FETCH APPLICATION =================
+    const application =
+      await ContractorApplication.findById(applicationId).session(session);
+
+    if (!application) {
+      throw new ErrorHandler("Application not found", 404);
+    }
+
+    // ================= GET LAST VERSION =================
+    const lastVersion = application.versions[application.versions.length - 1];
+
+    // ================= VALIDATION =================
+    // Only rejected applications can be resubmitted
+    if (lastVersion.status !== "REJECTED") {
+      throw new ErrorHandler(
+        "Only rejected application can be resubmitted",
+        400,
+      );
+    }
+
+    // ================= VERSION INCREMENT =================
+    const newVersionNumber = application.currentVersion + 1;
+
+    // ================= DOCUMENT MERGE HELPER =================
+    // If new file provided → add new version
+    // Else → keep previous documents
+    const mergeDocs = (oldDocs = [], newFile) => {
+      if (!newFile) return oldDocs;
+
+      return [
+        ...oldDocs,
+        {
+          versionNumber: newVersionNumber,
+          fileUrl: newFile,
+        },
+      ];
+    };
+
+    // ================= VERSION MERGE LOGIC =================
+    // New version is created by merging:
+    // New input (req.body)
+    // Old version (fallback)
+    const newVersion = {
+      versionNumber: newVersionNumber,
+
+      usageType: usageType ?? lastVersion.usageType,
+      totalUnitAreaSqm: totalUnitAreaSqm ?? lastVersion.totalUnitAreaSqm,
+      areaVariationSqm: areaVariationSqm ?? lastVersion.areaVariationSqm,
+
+      hasMezzanine: hasMezzanine ?? lastVersion.hasMezzanine,
+
+      totalUnitAreaAfterMezzanineSqm:
+        totalUnitAreaAfterMezzanineSqm ??
+        lastVersion.totalUnitAreaAfterMezzanineSqm,
+
+      tenantName: tenantName ?? lastVersion.tenantName,
+      tenantMobile: tenantMobile ?? lastVersion.tenantMobile,
+      tenantEmail: tenantEmail ?? lastVersion.tenantEmail,
+
+      // ================= REDESIGN HANDLING =================
+      // Only applicable for redesign applications
+      // If new redesign provided → update
+      // Else → retain previous redesign
+      redesign:
+        application.unitType === "Redesign Unit"
+          ? (redesign ?? lastVersion.redesign)
+          : undefined,
+
+      // ================= DOCUMENT VERSIONING =================
+      documents: {
+        ejariDocument: mergeDocs(
+          lastVersion.documents?.ejariDocument,
+          ejariDocument,
+        ),
+        appointmentLetter: mergeDocs(
+          lastVersion.documents?.appointmentLetter,
+          appointmentLetter,
+        ),
+        fitOutDrawings: mergeDocs(
+          lastVersion.documents?.fitOutDrawings,
+          fitOutDrawings,
+        ),
+      },
+
+      // ================= STATUS RESET =================
+      status: "UNDER_REVIEW",
+    };
+
+    // ================= SAVE NEW VERSION =================
+    application.versions.push(newVersion);
+    application.currentVersion = newVersionNumber;
+
+    await application.save({ session });
+
+    // ================= COMMIT TRANSACTION =================
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({
+      success: true,
+      message: "Application resubmitted successfully",
+      data: application,
+    });
+  } catch (error) {
+    // ================= ROLLBACK =================
+    await session.abortTransaction();
+    session.endSession();
+    next(error);
+  }
+});
+
+// get floor by application
+exports.getFloorByApplicationId = catchAsync(async (req, res, next) => {
+  const { applicationId } = req.params;
+
+  const application =
+    await ContractorApplication.findById(applicationId).populate("floorId");
+
+  if (!application) {
+    return next(new ErrorHandler("Application not found", 404));
+  }
+
+  if (!application.floorId) {
+    return next(new ErrorHandler("Floor not found", 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Floor found successfully",
+    data: application.floorId,
+  });
+});
+
+// exports.rejectApplication = catchAsync(async (req, res, next) => {
+//   try {
+//     const { applicationId } = req.params;
+//     const { remarks } = req.body;
+
+//     const application = await ContractorApplication.findById(applicationId);
+
+//     if (!application) {
+//       return next(new ErrorHandler("Application not found", 404));
+//     }
+
+//     // current version
+//     const currentVersion =
+//       application.versions[application.versions.length - 1];
+
+//     // already rejected
+//     if (currentVersion.status === "REJECTED") {
+//       return next(new ErrorHandler("Already rejected", 400));
+//     }
+
+//     // already approved
+//     if (currentVersion.status === "APPROVED") {
+//       return next(new ErrorHandler("Already approved", 400));
+//     }
+
+//     // update current version
+//     currentVersion.status = "REJECTED";
+//     currentVersion.remarks = remarks || "Rejected";
+//     currentVersion.reviewedAt = new Date();
+
+//     await application.save();
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Application rejected successfully",
+//       data: application,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// });

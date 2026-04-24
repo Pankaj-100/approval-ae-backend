@@ -2,13 +2,15 @@ const express = require("express");
 
 const {
   getUnitsByFloorId,
-  // submitApplication,
   getBuildingsByPlotNumber,
   getFloorsByBuildingId,
   getAllApplications,
   getApplicationById,
   submitApplicationSingle,
   submitApplicationRedesign,
+  resubmitApplication,
+  // rejectApplication,
+  getFloorByApplicationId,
 } = require("./contractor-application.controller");
 const { uploadFile } = require("../plot/plot.controller");
 const { upload } = require("../../utils/s3");
@@ -20,7 +22,6 @@ route.get("/application", getAllApplications);
 route.get("/building/:plotNumber", getBuildingsByPlotNumber);
 route.get("/floor/:buildingId", getFloorsByBuildingId);
 route.get("/unit/:floorId", getUnitsByFloorId);
-// route.post("/submit-application", submitApplication);
 route.get("/:id", getApplicationById);
 route.post("/submit-application", (req, res, next) => {
   if (req.body.unitType === "Redesign Unit") {
@@ -28,5 +29,8 @@ route.post("/submit-application", (req, res, next) => {
   }
   return submitApplicationSingle(req, res, next);
 });
+route.patch("/resubmit/:applicationId", resubmitApplication);
+route.get("/floor-detail/:applicationId", getFloorByApplicationId);
+// route.patch("/reject/:applicationId", rejectApplication);
 
 module.exports = route;
