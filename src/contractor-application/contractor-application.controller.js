@@ -175,6 +175,8 @@ exports.submitApplicationSingle = catchAsync(async (req, res, next) => {
       throw new ErrorHandler("Invalid selection", 400);
     }
 
+    const contractorId = req.user?._id || null;
+
     // ================= RELATION CHECK =================
     if (floor.buildingId.toString() !== buildingId) {
       throw new ErrorHandler("Floor not belongs to building", 400);
@@ -199,6 +201,16 @@ exports.submitApplicationSingle = catchAsync(async (req, res, next) => {
 
     if (exist) {
       throw new ErrorHandler("Application already exists", 400);
+    }
+
+    const updatedUnit = await Unit.findOneAndUpdate(
+      { _id: unitId, status: "AVAILABLE" },
+      { status: "CONSUMED" },
+      { session },
+    );
+
+    if (!updatedUnit) {
+      throw new ErrorHandler("Unit already consumed or not found", 400);
     }
 
     // ================= FINAL AREA =================
@@ -230,6 +242,8 @@ exports.submitApplicationSingle = catchAsync(async (req, res, next) => {
           floorId,
           unitId,
           buildingId,
+
+          contractorId,
 
           plotNumber: plot.plotNumber,
           buildingName: building.buildingName,
@@ -294,6 +308,10 @@ exports.getAllApplications = catchAsync(async (req, res, next) => {
   })
     .populate("buildingId", "buildingName")
     .populate("unitId", "unitId usageType totalSqm availableSqm usedSqm status")
+    .populate(
+      "versions.redesign.inputUnits.unitId",
+      "unitId usageType totalSqm availableSqm usedSqm status",
+    )
     .sort({ createdAt: -1 })
     .lean();
 
@@ -361,6 +379,18 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
     if (!inputUnits?.length) {
       throw new ErrorHandler("inputUnits required", 400);
     }
+
+    const [plot, floor, building] = await Promise.all([
+      PlotDetails.findById(plotId).session(session),
+      FloorDetails.findById(floorId).session(session),
+      BuildingDetails.findById(buildingId).session(session),
+    ]);
+
+    if (!plot || !floor || !building) {
+      throw new ErrorHandler("Invalid selection", 400);
+    }
+
+    const contractorId = req.user?._id || null;
 
     // ================= FETCH UNITS =================
     const unitIds = inputUnits.map((u) => u.unitId);
@@ -544,6 +574,12 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
           plotId,
           floorId,
           buildingId,
+
+          contractorId,
+          plotNumber: plot.plotNumber,
+          buildingName: building.buildingName,
+          floorNumber: floor.floorName,
+
           unitType: "Redesign Unit",
           displayUnit,
 

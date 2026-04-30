@@ -122,3 +122,69 @@ exports.unassignEmployee = catchAsyncError(async (req, res, next) => {
     data: application,
   });
 });
+
+// all application details
+exports.getApplicationDetails = catchAsyncError(async (req, res, next) => {
+  let { page = 1, limit = 10, search = "", jobStatus } = req.query;
+
+  page = Number(page);
+  limit = Number(limit);
+
+  let query = { isDeleted: false };
+
+  // Search
+  if (search) {
+    query.$or = [
+      { referenceNumber: { $regex: search, $options: "i" } },
+      { plotNumber: { $regex: search, $options: "i" } },
+      { buildingName: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  // Job Status filter
+  if (jobStatus) {
+    query.jobStatus = jobStatus;
+  }
+
+  const applications = await ContractorApplication.find(query)
+    .populate("assignedTo", "name")
+    .populate("contractorId", "name")
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .lean();
+
+  // Format for UI
+  const formatted = applications.map((app) => {
+    const latest = app.versions[app.versions.length - 1];
+
+    return {
+      appId: app.referenceNumber,
+      date: app.createdAt,
+
+      statusOfJob: app.jobStatus,
+
+      assignedEmployee: app.assignedTo?.name || null,
+
+      plotNo: app.plotNumber,
+      projectName: app.buildingName,
+
+      floorNo: app.floorNumber,
+      unitNo: app.displayUnit,
+
+      contractorName: app.contractorId?.name || null,
+    };
+  });
+
+  const total = await ContractorApplication.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: formatted,
+    pagination: {
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+    },
+  });
+});
