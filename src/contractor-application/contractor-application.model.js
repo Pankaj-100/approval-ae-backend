@@ -112,6 +112,37 @@ const contractorApplicationSchema = new mongoose.Schema(
       required: false,
     },
 
+    //new fields
+    contractorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    assignedTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    jobStatus: {
+      type: String,
+      enum: [
+        "APPLICATION_REVIEW",
+        "DESIGN_REVIEW",
+        "NOC_PENDING",
+        "WORK_PERMIT",
+        "INSPECTION",
+        "COMPLETED",
+      ],
+      default: "APPLICATION_REVIEW",
+    },
+
+    // currentStatus: {
+    //   type: String,
+    //   enum: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED"],
+    //   default: "PENDING",
+    // },
+
     plotNumber: String,
     buildingName: String,
     floorNumber: String,
