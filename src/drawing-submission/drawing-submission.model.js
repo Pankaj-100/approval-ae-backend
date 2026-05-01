@@ -31,6 +31,12 @@ const fileVersionSchema = new mongoose.Schema(
       default: null,
     },
 
+    reviewer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
     approvedAt: Date,
 
     rejectionReason: String,
