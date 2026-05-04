@@ -35,6 +35,10 @@ const fileVersionSchema = new mongoose.Schema(
 
     rejectionReason: String,
 
+    rejectionReasonDoc: {
+      type: String,
+    },
+
     isLatest: {
       type: Boolean,
       default: true,
@@ -71,6 +75,15 @@ const workPermitSchema = new mongoose.Schema(
       emiratesId: [fileVersionSchema],
       commonAreaProtection: [fileVersionSchema],
       securityCheque: [fileVersionSchema],
+    },
+
+    workPermitDoc: {
+      fileUrl: String,
+      uploadedAt: Date,
+      uploadedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
     },
 
     isDeleted: {

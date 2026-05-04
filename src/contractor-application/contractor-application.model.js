@@ -161,7 +161,19 @@ const contractorApplicationSchema = new mongoose.Schema(
     currentVersion: { type: Number, default: 1 },
     versions: [versionSchema],
 
-    isDeleted: { type: Boolean, default: false },
+    nocDoc: {
+      type: String,
+      uploadedAt: Date,
+      uploadedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    },
+
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true },
 );

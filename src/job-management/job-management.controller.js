@@ -4,6 +4,7 @@ const ContractorApplication = require("../contractor-application/contractor-appl
 const catchAsyncError = require("../../utils/catchAsyncError");
 const ErrorHandler = require("../../utils/errorHandler");
 const DrawingSubmission = require("../drawing-submission/drawing-submission.model");
+const WorkPermit = require("../work-permit/workPermit.model");
 
 const ASSIGNABLE_ROLES = ["ARCHITECT", "REVIEW_ENGINEER", "INSPECTION_AGENT"];
 
@@ -368,6 +369,8 @@ exports.getDrawingByApplicationId = catchAsyncError(async (req, res, next) => {
 
   // ================= RESPONSE FORMAT =================
   const formatted = {
+    submissionId: submission._id,
+
     applicationId: submission.contractorApplicationId,
 
     architectural: {
@@ -389,5 +392,359 @@ exports.getDrawingByApplicationId = catchAsyncError(async (req, res, next) => {
   res.status(200).json({
     success: true,
     data: formatted,
+  });
+});
+
+// review drawing file
+exports.reviewDrawingFile = catchAsyncError(async (req, res, next) => {
+  const {
+    submissionId,
+    section,
+    type,
+    action,
+    rejectionReason,
+    rejectionReasonDoc,
+  } = req.body;
+
+  // ================= VALIDATION =================
+  if (!["architectural", "mep", "structural"].includes(section)) {
+    return next(new ErrorHandler("Invalid section", 400));
+  }
+
+  if (!["autoCad", "dwf"].includes(type)) {
+    return next(new ErrorHandler("Invalid file type", 400));
+  }
+
+  if (!["APPROVE", "REJECT"].includes(action)) {
+    return next(new ErrorHandler("Invalid action", 400));
+  }
+
+  // Reject validation
+  if (action === "REJECT") {
+    if (!rejectionReason) {
+      return next(new ErrorHandler("Rejection reason required", 400));
+    }
+
+    if (!rejectionReasonDoc) {
+      return next(new ErrorHandler("Rejection document required", 400));
+    }
+  }
+
+  // ================= FETCH =================
+  const submission = await DrawingSubmission.findById(submissionId);
+
+  if (!submission || submission.isDeleted) {
+    return next(new ErrorHandler("Drawing submission not found", 404));
+  }
+
+  // ================= GET FILES =================
+  const files = submission[section][type];
+
+  if (!files || files.length === 0) {
+    return next(new ErrorHandler("No files found", 404));
+  }
+
+  // ================= LATEST VERSION =================
+  const file =
+    files.find((f) => f.isLatest === true) || files[files.length - 1];
+
+  if (!file) {
+    return next(new ErrorHandler("Latest file not found", 404));
+  }
+
+  // ================= ALREADY REVIEWED =================
+  if (file.status !== "PENDING") {
+    return next(new ErrorHandler("File already reviewed", 400));
+  }
+
+  // ================= UPDATE =================
+  file.status = action === "APPROVE" ? "APPROVED" : "REJECTED";
+
+  file.rejectionReason = action === "REJECT" ? rejectionReason : null;
+
+  // NEW FIELD SAVE
+  file.rejectionReasonDoc = action === "REJECT" ? rejectionReasonDoc : null;
+
+  file.approvedBy = req.user?._id || null;
+  file.reviewer = req.user?._id || null;
+  file.approvedAt = new Date();
+
+  await submission.save();
+
+  const sections = ["architectural", "mep", "structural"];
+  const types = ["autoCad", "dwf"];
+
+  let allApproved = true;
+
+  for (let sec of sections) {
+    for (let t of types) {
+      const files = submission[sec]?.[t] || [];
+
+      if (files.length === 0) {
+        allApproved = false;
+        break;
+      }
+
+      const latest = files.find((f) => f.isLatest) || files[files.length - 1];
+
+      if (!latest || latest.status !== "APPROVED") {
+        allApproved = false;
+        break;
+      }
+    }
+  }
+
+  // UPDATE JOB STATUS
+  if (allApproved) {
+    await ContractorApplication.findByIdAndUpdate(
+      submission.contractorApplicationId,
+      {
+        jobStatus: "NOC_PENDING",
+      },
+    );
+  }
+
+  // ================= RESPONSE =================
+  res.status(200).json({
+    success: true,
+    message:
+      action === "APPROVE"
+        ? "File approved successfully"
+        : "File rejected successfully",
+    data: {
+      section,
+      type,
+      versionNumber: file.versionNumber,
+      status: file.status,
+      rejectionReason: file.rejectionReason,
+      rejectionReasonDoc: file.rejectionReasonDoc,
+    },
+  });
+});
+
+exports.uploadNOC = catchAsyncError(async (req, res, next) => {
+  const { applicationId, nocDocumentUrl } = req.body;
+
+  // ================= VALIDATION =================
+  if (!applicationId || !nocDocumentUrl) {
+    return next(new ErrorHandler("ApplicationId & NOC document required", 400));
+  }
+
+  // ================= FETCH =================
+  const application = await ContractorApplication.findById(applicationId);
+
+  if (!application || application.isDeleted) {
+    return next(new ErrorHandler("Application not found", 404));
+  }
+
+  // ================= CHECK STATUS =================
+  // if (application.jobStatus !== "NOC_PENDING") {
+  //   return next(
+  //     new ErrorHandler("NOC can only be uploaded in NOC_PENDING stage", 400),
+  //   );
+  // }
+
+  // ================= SAVE NOC =================
+
+  application.nocDocument = {
+    fileUrl: nocDocumentUrl,
+    uploadedAt: new Date(),
+    uploadedBy: req.user?._id || null,
+  };
+
+  // ================= UPDATE STATUS =================
+  application.jobStatus = "WORK_PERMIT";
+
+  await application.save();
+
+  // ================= RESPONSE =================
+  res.status(200).json({
+    success: true,
+    message: "NOC uploaded successfully, moved to WORK PERMIT stage",
+    data: {
+      applicationId: application._id,
+      jobStatus: application.jobStatus,
+      nocDocument: application.nocDocument,
+    },
+  });
+});
+
+// get work permit
+exports.getWorkPermitByApplicationId = catchAsyncError(
+  async (req, res, next) => {
+    const { applicationId } = req.params;
+
+    const submission = await WorkPermit.findOne({
+      contractorApplicationId: applicationId,
+      isDeleted: false,
+    }).lean();
+
+    if (!submission) {
+      return next(new ErrorHandler("Work permit not found", 404));
+    }
+
+    const formatFiles = (files = []) =>
+      files.map((f) => ({
+        versionNumber: f.versionNumber,
+        fileUrl: f.fileUrl,
+        status: f.status,
+        isLatest: f.isLatest,
+        rejectionReason: f.rejectionReason,
+        uploadedAt: f.uploadedAt,
+      }));
+
+    const formatted = {
+      submissionId: submission._id,
+      applicationId: submission.contractorApplicationId,
+
+      documents: {
+        dcd: formatFiles(submission.documents?.dcd),
+        dewaApproval: formatFiles(submission.documents?.dewaApproval),
+        dmDdaDrawings: formatFiles(submission.documents?.dmDdaDrawings),
+        subcontractorUndertaking: formatFiles(
+          submission.documents?.subcontractorUndertaking,
+        ),
+        carInsurance: formatFiles(submission.documents?.carInsurance),
+        workmenCompensationInsurance: formatFiles(
+          submission.documents?.workmenCompensationInsurance,
+        ),
+        emiratesId: formatFiles(submission.documents?.emiratesId),
+        commonAreaProtection: formatFiles(
+          submission.documents?.commonAreaProtection,
+        ),
+        securityCheque: formatFiles(submission.documents?.securityCheque),
+      },
+    };
+
+    res.status(200).json({
+      success: true,
+      data: formatted,
+    });
+  },
+);
+
+//review work permit
+exports.reviewWorkPermitFile = catchAsyncError(async (req, res, next) => {
+  const { submissionId, docType, action, rejectionReason, rejectionReasonDoc } =
+    req.body;
+
+  const validDocs = [
+    "dcd",
+    "dewaApproval",
+    "dmDdaDrawings",
+    "subcontractorUndertaking",
+    "carInsurance",
+    "workmenCompensationInsurance",
+    "emiratesId",
+    "commonAreaProtection",
+    "securityCheque",
+  ];
+
+  if (!validDocs.includes(docType))
+    return next(new ErrorHandler("Invalid document type", 400));
+
+  if (!["APPROVE", "REJECT"].includes(action))
+    return next(new ErrorHandler("Invalid action", 400));
+
+  if (action === "REJECT" && (!rejectionReason || !rejectionReasonDoc))
+    return next(new ErrorHandler("Rejection reason & doc required", 400));
+
+  const submission = await WorkPermit.findById(submissionId);
+  if (!submission || submission.isDeleted)
+    return next(new ErrorHandler("Work permit not found", 404));
+
+  const files = submission.documents[docType];
+  if (!files?.length) return next(new ErrorHandler("No files found", 404));
+
+  const file = files.find((f) => f.isLatest) || files[files.length - 1];
+
+  if (!file || file.status !== "PENDING")
+    return next(new ErrorHandler("File already reviewed", 400));
+
+  // UPDATE
+  file.status = action === "APPROVE" ? "APPROVED" : "REJECTED";
+  file.rejectionReason = action === "REJECT" ? rejectionReason : null;
+  file.rejectionReasonDoc = action === "REJECT" ? rejectionReasonDoc : null;
+  file.approvedBy = req.user?._id || null;
+  file.approvedAt = new Date();
+
+  await submission.save();
+
+  // CHECK ALL APPROVED → MOVE TO INSPECTION
+  const allDocs = Object.values(submission.documents);
+
+  let allApproved = true;
+
+  for (let arr of allDocs) {
+    if (!arr.length) {
+      allApproved = false;
+      break;
+    }
+
+    const latest = arr.find((f) => f.isLatest) || arr[arr.length - 1];
+
+    if (!latest || latest.status !== "APPROVED") {
+      allApproved = false;
+      break;
+    }
+  }
+
+  if (allApproved) {
+    await ContractorApplication.findByIdAndUpdate(
+      submission.contractorApplicationId,
+      { jobStatus: "INSPECTION" },
+    );
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `File ${file.status.toLowerCase()} successfully`,
+    data: {
+      docType,
+      versionNumber: file.versionNumber,
+      status: file.status,
+    },
+  });
+});
+
+//upload work permit
+exports.uploadWorkPermitDoc = catchAsyncError(async (req, res, next) => {
+  const { applicationId, workPermitUrl } = req.body;
+
+  if (!applicationId || !workPermitUrl) {
+    return next(new ErrorHandler("ApplicationId & document required", 400));
+  }
+
+  const application = await ContractorApplication.findById(applicationId);
+
+  if (!application || application.isDeleted) {
+    return next(new ErrorHandler("Application not found", 404));
+  }
+
+  // check
+  // if (application.jobStatus !== "WORK_PERMIT") {
+  //   return next(new ErrorHandler("Not in WORK PERMIT stage", 400));
+  // }
+
+  const permit = await WorkPermit.findOne({
+    contractorApplicationId: applicationId,
+  });
+
+  if (!permit) {
+    return next(new ErrorHandler("Work permit not found", 404));
+  }
+
+  permit.workPermitDoc = {
+    fileUrl: workPermitUrl,
+    uploadedAt: new Date(),
+    uploadedBy: req.user?._id || null,
+  };
+
+  await permit.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Work permit uploaded successfully",
+    data: permit.workPermitDoc,
   });
 });

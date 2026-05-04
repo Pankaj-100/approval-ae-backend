@@ -41,6 +41,10 @@ const fileVersionSchema = new mongoose.Schema(
 
     rejectionReason: String,
 
+    rejectionReasonDoc: {
+      type: String,
+    },
+
     isLatest: {
       type: Boolean,
       default: true,
