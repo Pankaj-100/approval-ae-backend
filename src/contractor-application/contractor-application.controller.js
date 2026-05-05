@@ -122,185 +122,6 @@ exports.getUnitsByFloorId = catchAsync(async (req, res, next) => {
   });
 });
 
-// SUBMIT APPLICATION
-
-exports.submitApplicationSingle = catchAsync(async (req, res, next) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const {
-      plotId,
-      floorId,
-      unitId,
-      buildingId,
-
-      usageType,
-      totalUnitAreaSqm,
-      areaVariationSqm,
-      hasMezzanine,
-      totalUnitAreaAfterMezzanineSqm,
-
-      tenantName,
-      tenantMobile,
-      tenantEmail,
-
-      ejariDocument,
-      appointmentLetter,
-      fitOutDrawings,
-    } = req.body;
-
-    // ================= VALIDATION =================
-    if (!plotId || !floorId || !unitId || !buildingId) {
-      throw new ErrorHandler("Plot, Building, Floor and Unit required", 400);
-    }
-
-    if (!usageType || !totalUnitAreaSqm) {
-      throw new ErrorHandler("Unit details missing", 400);
-    }
-
-    if (hasMezzanine && !totalUnitAreaAfterMezzanineSqm) {
-      throw new ErrorHandler("Mezzanine area required", 400);
-    }
-
-    // ================= FETCH =================
-    const [plot, floor, unit, building] = await Promise.all([
-      PlotDetails.findById(plotId).session(session),
-      FloorDetails.findById(floorId).session(session),
-      Unit.findById(unitId).session(session),
-      BuildingDetails.findById(buildingId).session(session),
-    ]);
-
-    if (!plot || !floor || !unit || !building) {
-      throw new ErrorHandler("Invalid selection", 400);
-    }
-
-    const contractorId = req.user?._id || null;
-
-    // ================= RELATION CHECK =================
-    if (floor.buildingId.toString() !== buildingId) {
-      throw new ErrorHandler("Floor not belongs to building", 400);
-    }
-
-    if (unit.floorId.toString() !== floorId) {
-      throw new ErrorHandler("Unit not belongs to floor", 400);
-    }
-
-    if (unit.status !== "AVAILABLE") {
-      throw new ErrorHandler("Unit already consumed", 400);
-    }
-
-    // ================= DUPLICATE CHECK =================
-    const exist = await ContractorApplication.findOne({
-      isDeleted: false,
-      $or: [
-        { unitId: unitId },
-        { "versions.redesign.inputUnits.unitId": unitId },
-      ],
-    }).session(session);
-
-    if (exist) {
-      throw new ErrorHandler("Application already exists", 400);
-    }
-
-    const updatedUnit = await Unit.findOneAndUpdate(
-      { _id: unitId, status: "AVAILABLE" },
-      { status: "CONSUMED" },
-      { session },
-    );
-
-    if (!updatedUnit) {
-      throw new ErrorHandler("Unit already consumed or not found", 400);
-    }
-
-    // ================= FINAL AREA =================
-    let finalArea = totalUnitAreaSqm;
-
-    if (hasMezzanine) {
-      finalArea = totalUnitAreaAfterMezzanineSqm;
-    }
-
-    // ================= DISPLAY =================
-    const displayUnit = `${unit.unitId} (${finalArea} sqm)`;
-
-    // ================= DOCUMENT HELPER =================
-    const buildDocs = (file) =>
-      file ? [{ versionNumber: 1, fileUrl: file }] : [];
-
-    // ================= SIMPLE REFERENCE NUMBER  =================
-
-    const seq = await getNextSequence("application", session);
-    const referenceNumber = `APP${String(seq).padStart(9, "0")}`;
-
-    // ================= CREATE =================
-    const [application] = await ContractorApplication.create(
-      [
-        {
-          referenceNumber,
-
-          plotId,
-          floorId,
-          unitId,
-          buildingId,
-
-          contractorId,
-
-          plotNumber: plot.plotNumber,
-          buildingName: building.buildingName,
-          floorNumber: floor.floorName,
-          displayUnit,
-
-          unitType: "Single Unit",
-
-          currentVersion: 1,
-
-          versions: [
-            {
-              versionNumber: 1,
-
-              usageType,
-              totalUnitAreaSqm: finalArea,
-              areaVariationSqm: areaVariationSqm || 0,
-
-              hasMezzanine: hasMezzanine || false,
-              totalUnitAreaAfterMezzanineSqm: hasMezzanine
-                ? totalUnitAreaAfterMezzanineSqm
-                : null,
-
-              tenantName,
-              tenantMobile,
-              tenantEmail,
-
-              documents: {
-                ejariDocument: buildDocs(ejariDocument),
-                appointmentLetter: buildDocs(appointmentLetter),
-                fitOutDrawings: buildDocs(fitOutDrawings),
-              },
-
-              status: "UNDER_REVIEW",
-            },
-          ],
-        },
-      ],
-      { session },
-    );
-
-    // ================= COMMIT =================
-    await session.commitTransaction();
-    session.endSession();
-
-    res.status(201).json({
-      success: true,
-      message: "Application submitted successfully",
-      data: application,
-    });
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    next(error);
-  }
-});
-
 //get all applications
 exports.getAllApplications = catchAsync(async (req, res, next) => {
   const applications = await ContractorApplication.find({
@@ -337,301 +158,6 @@ exports.getApplicationById = catchAsync(async (req, res, next) => {
     success: true,
     data: application,
   });
-});
-
-exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    let {
-      unitType,
-      plotId,
-      floorId,
-      buildingId,
-
-      inputUnits,
-      redesignType,
-      resultUnits: inputResultUnits = [],
-
-      modifyArea = 0,
-
-      usageType,
-      tenantName,
-      tenantMobile,
-      tenantEmail,
-
-      ejariDocument,
-      appointmentLetter,
-      fitOutDrawings,
-
-      hasMezzanine,
-      totalUnitAreaAfterMezzanineSqm,
-    } = req.body;
-
-    let resultUnits = [];
-
-    // ================= VALIDATION =================
-    if (unitType !== "Redesign Unit") {
-      throw new ErrorHandler("Invalid unitType", 400);
-    }
-
-    if (!inputUnits?.length) {
-      throw new ErrorHandler("inputUnits required", 400);
-    }
-
-    const [plot, floor, building] = await Promise.all([
-      PlotDetails.findById(plotId).session(session),
-      FloorDetails.findById(floorId).session(session),
-      BuildingDetails.findById(buildingId).session(session),
-    ]);
-
-    if (!plot || !floor || !building) {
-      throw new ErrorHandler("Invalid selection", 400);
-    }
-
-    const contractorId = req.user?._id || null;
-
-    // ================= FETCH UNITS =================
-    const unitIds = inputUnits.map((u) => u.unitId);
-
-    const units = await Unit.find({
-      _id: { $in: unitIds },
-      isDeleted: false,
-      status: "AVAILABLE",
-    }).session(session);
-
-    if (units.length !== inputUnits.length) {
-      throw new ErrorHandler("Some units not found", 404);
-    }
-
-    // ================= AREA =================
-    let baseArea = 0;
-
-    for (let input of inputUnits) {
-      const unit = units.find(
-        (u) => u._id.toString() === input.unitId.toString(),
-      );
-
-      if (!unit) throw new ErrorHandler("Unit not found", 404);
-
-      if (input.area > unit.availableSqm) {
-        throw new ErrorHandler(`Not enough area in ${unit.unitId}`, 400);
-      }
-
-      baseArea += input.area;
-    }
-
-    //FINAL AREA LOGIC
-    let finalArea = baseArea + modifyArea;
-
-    if (hasMezzanine) {
-      if (!totalUnitAreaAfterMezzanineSqm) {
-        throw new ErrorHandler("Mezzanine area required", 400);
-      }
-      finalArea = totalUnitAreaAfterMezzanineSqm;
-    }
-
-    if (finalArea <= 0) {
-      throw new ErrorHandler("Invalid final area", 400);
-    }
-
-    // ================= VALIDATE RESULT =================
-    if (
-      ["SPLIT", "MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)
-    ) {
-      const total = inputResultUnits.reduce((sum, r) => sum + r.area, 0);
-
-      if (total !== finalArea) {
-        throw new ErrorHandler("Result area mismatch", 400);
-      }
-    }
-
-    // ================= NAME GENERATOR =================
-    const generateName = (type, units, area) => {
-      const names = units.map((u) => u.unitId).join(", ");
-      return `${type} - ${names} (${area} sqm)`;
-    };
-
-    const createdUnits = [];
-
-    // ================= CASE 1: MERGE =================
-    if (redesignType === "MERGE") {
-      await Unit.updateMany(
-        { _id: { $in: unitIds } },
-        { status: "CONSUMED" },
-        { session },
-      );
-
-      const finalName = `${generateName("MERGE", units, finalArea)}-${Date.now()}`;
-
-      const mergedUnit = await Unit.create(
-        [
-          {
-            floorId,
-            buildingId,
-            unitId: finalName,
-            usageType,
-            fitOutWork: "YES",
-            totalSqm: finalArea,
-            availableSqm: finalArea,
-            usedSqm: 0,
-            parentUnits: unitIds,
-          },
-        ],
-        { session },
-      );
-
-      createdUnits.push(mergedUnit[0]);
-
-      resultUnits = [{ name: finalName, area: finalArea }];
-    }
-
-    // ================= CASE 2: SPLIT =================
-    if (redesignType === "SPLIT") {
-      const unit = units[0];
-
-      await Unit.findByIdAndUpdate(
-        unit._id,
-        { status: "CONSUMED" },
-        { session },
-      );
-
-      for (let r of inputResultUnits) {
-        const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
-
-        const newUnit = await Unit.create(
-          [
-            {
-              floorId,
-              buildingId,
-              unitId: finalName,
-              usageType,
-              fitOutWork: unit.fitOutWork,
-              totalSqm: r.area,
-              availableSqm: r.area,
-              usedSqm: 0,
-              parentUnits: [unit._id],
-            },
-          ],
-          { session },
-        );
-
-        createdUnits.push(newUnit[0]);
-
-        resultUnits.push({ name: finalName, area: r.area });
-      }
-    }
-
-    // ================= CASE 3 & 4 =================
-    if (["MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)) {
-      await Unit.updateMany(
-        { _id: { $in: unitIds } },
-        { status: "CONSUMED" },
-        { session },
-      );
-
-      for (let r of inputResultUnits) {
-        const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
-
-        const newUnit = await Unit.create(
-          [
-            {
-              floorId,
-              buildingId,
-              unitId: finalName,
-              usageType,
-              fitOutWork: "YES",
-              totalSqm: r.area,
-              availableSqm: r.area,
-              usedSqm: 0,
-              parentUnits: unitIds,
-            },
-          ],
-          { session },
-        );
-
-        createdUnits.push(newUnit[0]);
-
-        resultUnits.push({ name: finalName, area: r.area });
-      }
-    }
-
-    // ================= DOCUMENT HELPER  =================
-    const buildDocs = (file) =>
-      file ? [{ versionNumber: 1, fileUrl: file }] : [];
-
-    // ================= APPLICATION =================
-    const seq = await getNextSequence("application", session);
-    const referenceNumber = `APP${String(seq).padStart(9, "0")}`;
-
-    const displayUnit = generateName(redesignType, units, finalArea);
-
-    const [application] = await ContractorApplication.create(
-      [
-        {
-          referenceNumber,
-          plotId,
-          floorId,
-          buildingId,
-
-          contractorId,
-          plotNumber: plot.plotNumber,
-          buildingName: building.buildingName,
-          floorNumber: floor.floorName,
-
-          unitType: "Redesign Unit",
-          displayUnit,
-
-          versions: [
-            {
-              versionNumber: 1,
-              usageType,
-              totalUnitAreaSqm: finalArea,
-
-              hasMezzanine: hasMezzanine || false,
-              totalUnitAreaAfterMezzanineSqm: hasMezzanine
-                ? totalUnitAreaAfterMezzanineSqm
-                : null,
-
-              tenantName,
-              tenantMobile,
-              tenantEmail,
-
-              redesign: {
-                redesignType,
-                inputUnits,
-                resultUnits,
-              },
-
-              documents: {
-                ejariDocument: buildDocs(ejariDocument),
-                appointmentLetter: buildDocs(appointmentLetter),
-                fitOutDrawings: buildDocs(fitOutDrawings),
-              },
-
-              status: "UNDER_REVIEW",
-            },
-          ],
-        },
-      ],
-      { session },
-    );
-
-    await session.commitTransaction();
-    session.endSession();
-
-    res.status(201).json({
-      success: true,
-      message: "Redesign applied successfully",
-      application,
-      newUnits: createdUnits,
-    });
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    next(error);
-  }
 });
 
 // resubmit application
@@ -835,3 +361,425 @@ exports.getFloorByApplicationId = catchAsync(async (req, res, next) => {
 //     next(error);
 //   }
 // });
+
+exports.submitApplicationSingle = catchAsync(async (req, res, next) => {
+  let applicationDoc;
+
+  await mongoose.connection.transaction(async (session) => {
+    const {
+      plotId,
+      floorId,
+      unitId,
+      buildingId,
+      usageType,
+      totalUnitAreaSqm,
+      areaVariationSqm,
+      hasMezzanine,
+      totalUnitAreaAfterMezzanineSqm,
+      tenantName,
+      tenantMobile,
+      tenantEmail,
+      ejariDocument,
+      appointmentLetter,
+      fitOutDrawings,
+    } = req.body;
+
+    // ================= VALIDATION =================
+    if (!plotId || !floorId || !unitId || !buildingId) {
+      throw new ErrorHandler("Plot, Building, Floor and Unit required", 400);
+    }
+
+    if (!usageType || !totalUnitAreaSqm) {
+      throw new ErrorHandler("Unit details missing", 400);
+    }
+
+    if (hasMezzanine && !totalUnitAreaAfterMezzanineSqm) {
+      throw new ErrorHandler("Mezzanine area required", 400);
+    }
+
+    // ================= FETCH =================
+    const [plot, floor, unit, building] = await Promise.all([
+      PlotDetails.findById(plotId).session(session),
+      FloorDetails.findById(floorId).session(session),
+      Unit.findById(unitId).session(session),
+      BuildingDetails.findById(buildingId).session(session),
+    ]);
+
+    if (!plot || !floor || !unit || !building) {
+      throw new ErrorHandler("Invalid selection", 400);
+    }
+
+    const contractorId = req.user?._id || null;
+
+    // ================= RELATION CHECK =================
+    if (floor.buildingId.toString() !== buildingId) {
+      throw new ErrorHandler("Floor does not belong to building", 400);
+    }
+
+    if (unit.floorId.toString() !== floorId) {
+      throw new ErrorHandler("Unit does not belong to floor", 400);
+    }
+
+    if (unit.status !== "AVAILABLE") {
+      throw new ErrorHandler("Unit already consumed", 400);
+    }
+
+    // ================= DUPLICATE CHECK =================
+    const exist = await ContractorApplication.findOne({
+      isDeleted: false,
+      $or: [{ unitId }, { "versions.redesign.inputUnits.unitId": unitId }],
+    }).session(session);
+
+    if (exist) {
+      throw new ErrorHandler("Application already exists", 400);
+    }
+
+    // ================= UPDATE UNIT =================
+    const updatedUnit = await Unit.findOneAndUpdate(
+      { _id: unitId, status: "AVAILABLE" },
+      { status: "CONSUMED" },
+      { session },
+    );
+
+    if (!updatedUnit) {
+      throw new ErrorHandler("Unit already consumed or not found", 400);
+    }
+
+    // ================= FINAL AREA =================
+    const finalArea = hasMezzanine
+      ? totalUnitAreaAfterMezzanineSqm
+      : totalUnitAreaSqm;
+
+    const displayUnit = `${unit.unitId} (${finalArea} sqm)`;
+
+    // ================= DOC HELPER =================
+    const buildDocs = (file) =>
+      file ? [{ versionNumber: 1, fileUrl: file }] : [];
+
+    // ================= REFERENCE =================
+    const seq = await getNextSequence("application", session);
+    const referenceNumber = `APP${String(seq).padStart(9, "0")}`;
+
+    // ================= CREATE =================
+    const [doc] = await ContractorApplication.create(
+      [
+        {
+          referenceNumber,
+          plotId,
+          floorId,
+          unitId,
+          buildingId,
+          contractorId,
+          plotNumber: plot.plotNumber,
+          buildingName: building.buildingName,
+          floorNumber: floor.floorName,
+          displayUnit,
+          unitType: "Single Unit",
+          currentVersion: 1,
+          versions: [
+            {
+              versionNumber: 1,
+              usageType,
+              totalUnitAreaSqm: finalArea,
+              areaVariationSqm: areaVariationSqm || 0,
+              hasMezzanine: !!hasMezzanine,
+              totalUnitAreaAfterMezzanineSqm: hasMezzanine
+                ? totalUnitAreaAfterMezzanineSqm
+                : null,
+              tenantName,
+              tenantMobile,
+              tenantEmail,
+              documents: {
+                ejariDocument: buildDocs(ejariDocument),
+                appointmentLetter: buildDocs(appointmentLetter),
+                fitOutDrawings: buildDocs(fitOutDrawings),
+              },
+              status: "UNDER_REVIEW",
+            },
+          ],
+        },
+      ],
+      { session },
+    );
+
+    applicationDoc = doc;
+  });
+
+  // ================= RESPONSE =================
+  res.status(201).json({
+    success: true,
+    message: "Application submitted successfully",
+    data: applicationDoc,
+  });
+});
+
+exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
+  let applicationDoc;
+  let createdUnits = [];
+
+  await mongoose.connection.transaction(async (session) => {
+    let {
+      unitType,
+      plotId,
+      floorId,
+      buildingId,
+      inputUnits,
+      redesignType,
+      resultUnits: inputResultUnits = [],
+      modifyArea = 0,
+      usageType,
+      tenantName,
+      tenantMobile,
+      tenantEmail,
+      ejariDocument,
+      appointmentLetter,
+      fitOutDrawings,
+      hasMezzanine,
+      totalUnitAreaAfterMezzanineSqm,
+    } = req.body;
+
+    let resultUnits = [];
+
+    // ================= VALIDATION =================
+    if (unitType !== "Redesign Unit") {
+      throw new ErrorHandler("Invalid unitType", 400);
+    }
+
+    if (!inputUnits?.length) {
+      throw new ErrorHandler("inputUnits required", 400);
+    }
+
+    const [plot, floor, building] = await Promise.all([
+      PlotDetails.findById(plotId).session(session),
+      FloorDetails.findById(floorId).session(session),
+      BuildingDetails.findById(buildingId).session(session),
+    ]);
+
+    if (!plot || !floor || !building) {
+      throw new ErrorHandler("Invalid selection", 400);
+    }
+
+    const contractorId = req.user?._id || null;
+
+    // ================= FETCH UNITS =================
+    const unitIds = inputUnits.map((u) => u.unitId);
+
+    const units = await Unit.find({
+      _id: { $in: unitIds },
+      isDeleted: false,
+      status: "AVAILABLE",
+    }).session(session);
+
+    if (units.length !== inputUnits.length) {
+      throw new ErrorHandler("Some units not found", 404);
+    }
+
+    // ================= AREA =================
+    let baseArea = 0;
+
+    for (let input of inputUnits) {
+      const unit = units.find(
+        (u) => u._id.toString() === input.unitId.toString(),
+      );
+
+      if (!unit) throw new ErrorHandler("Unit not found", 404);
+
+      if (input.area > unit.availableSqm) {
+        throw new ErrorHandler(`Not enough area in ${unit.unitId}`, 400);
+      }
+
+      baseArea += input.area;
+    }
+
+    let finalArea = baseArea + modifyArea;
+
+    if (hasMezzanine) {
+      if (!totalUnitAreaAfterMezzanineSqm) {
+        throw new ErrorHandler("Mezzanine area required", 400);
+      }
+      finalArea = totalUnitAreaAfterMezzanineSqm;
+    }
+
+    if (finalArea <= 0) {
+      throw new ErrorHandler("Invalid final area", 400);
+    }
+
+    // ================= VALIDATE RESULT =================
+    if (
+      ["SPLIT", "MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)
+    ) {
+      const total = inputResultUnits.reduce((sum, r) => sum + r.area, 0);
+
+      if (total !== finalArea) {
+        throw new ErrorHandler("Result area mismatch", 400);
+      }
+    }
+
+    // ================= NAME GENERATOR =================
+    const generateName = (type, units, area) => {
+      const names = units.map((u) => u.unitId).join(", ");
+      return `${type} - ${names} (${area} sqm)`;
+    };
+
+    // ================= CASE 1: MERGE =================
+    if (redesignType === "MERGE") {
+      await Unit.updateMany(
+        { _id: { $in: unitIds } },
+        { status: "CONSUMED" },
+        { session },
+      );
+
+      const finalName = `${generateName("MERGE", units, finalArea)}-${Date.now()}`;
+
+      const mergedUnit = await Unit.create(
+        [
+          {
+            floorId,
+            buildingId,
+            unitId: finalName,
+            usageType,
+            fitOutWork: "YES",
+            totalSqm: finalArea,
+            availableSqm: finalArea,
+            usedSqm: 0,
+            parentUnits: unitIds,
+          },
+        ],
+        { session },
+      );
+
+      createdUnits.push(mergedUnit[0]);
+      resultUnits = [{ name: finalName, area: finalArea }];
+    }
+
+    // ================= CASE 2: SPLIT =================
+    if (redesignType === "SPLIT") {
+      const unit = units[0];
+
+      await Unit.findByIdAndUpdate(
+        unit._id,
+        { status: "CONSUMED" },
+        { session },
+      );
+
+      for (let r of inputResultUnits) {
+        const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
+
+        const newUnit = await Unit.create(
+          [
+            {
+              floorId,
+              buildingId,
+              unitId: finalName,
+              usageType,
+              fitOutWork: unit.fitOutWork,
+              totalSqm: r.area,
+              availableSqm: r.area,
+              usedSqm: 0,
+              parentUnits: [unit._id],
+            },
+          ],
+          { session },
+        );
+
+        createdUnits.push(newUnit[0]);
+        resultUnits.push({ name: finalName, area: r.area });
+      }
+    }
+
+    // ================= CASE 3 & 4 =================
+    if (["MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)) {
+      await Unit.updateMany(
+        { _id: { $in: unitIds } },
+        { status: "CONSUMED" },
+        { session },
+      );
+
+      for (let r of inputResultUnits) {
+        const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
+
+        const newUnit = await Unit.create(
+          [
+            {
+              floorId,
+              buildingId,
+              unitId: finalName,
+              usageType,
+              fitOutWork: "YES",
+              totalSqm: r.area,
+              availableSqm: r.area,
+              usedSqm: 0,
+              parentUnits: unitIds,
+            },
+          ],
+          { session },
+        );
+
+        createdUnits.push(newUnit[0]);
+        resultUnits.push({ name: finalName, area: r.area });
+      }
+    }
+
+    // ================= DOCUMENT =================
+    const buildDocs = (file) =>
+      file ? [{ versionNumber: 1, fileUrl: file }] : [];
+
+    const seq = await getNextSequence("application", session);
+    const referenceNumber = `APP${String(seq).padStart(9, "0")}`;
+
+    const displayUnit = generateName(redesignType, units, finalArea);
+
+    const [doc] = await ContractorApplication.create(
+      [
+        {
+          referenceNumber,
+          plotId,
+          floorId,
+          buildingId,
+          contractorId,
+          plotNumber: plot.plotNumber,
+          buildingName: building.buildingName,
+          floorNumber: floor.floorName,
+          unitType: "Redesign Unit",
+          displayUnit,
+          versions: [
+            {
+              versionNumber: 1,
+              usageType,
+              totalUnitAreaSqm: finalArea,
+              hasMezzanine: !!hasMezzanine,
+              totalUnitAreaAfterMezzanineSqm: hasMezzanine
+                ? totalUnitAreaAfterMezzanineSqm
+                : null,
+              tenantName,
+              tenantMobile,
+              tenantEmail,
+              redesign: {
+                redesignType,
+                inputUnits,
+                resultUnits,
+              },
+              documents: {
+                ejariDocument: buildDocs(ejariDocument),
+                appointmentLetter: buildDocs(appointmentLetter),
+                fitOutDrawings: buildDocs(fitOutDrawings),
+              },
+              status: "UNDER_REVIEW",
+            },
+          ],
+        },
+      ],
+      { session },
+    );
+
+    applicationDoc = doc;
+  });
+
+  // ================= RESPONSE =================
+  res.status(201).json({
+    success: true,
+    message: "Redesign applied successfully",
+    data: applicationDoc,
+    newUnits: createdUnits,
+  });
+});
