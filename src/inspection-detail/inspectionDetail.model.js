@@ -35,6 +35,16 @@ const fileVersionSchema = new mongoose.Schema(
 
     rejectionReason: String,
 
+    rejectionReasonDoc: {
+      type: String,
+      default: null,
+    },
+
+    appointmentDateTime: {
+      type: Date,
+      default: null,
+    },
+
     isLatest: {
       type: Boolean,
       default: true,

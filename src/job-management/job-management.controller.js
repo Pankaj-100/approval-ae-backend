@@ -5,6 +5,7 @@ const catchAsyncError = require("../../utils/catchAsyncError");
 const ErrorHandler = require("../../utils/errorHandler");
 const DrawingSubmission = require("../drawing-submission/drawing-submission.model");
 const WorkPermit = require("../work-permit/workPermit.model");
+const InspectionDetail = require("../inspection-detail/inspectionDetail.model");
 
 const ASSIGNABLE_ROLES = ["ARCHITECT", "REVIEW_ENGINEER", "INSPECTION_AGENT"];
 
@@ -746,5 +747,173 @@ exports.uploadWorkPermitDoc = catchAsyncError(async (req, res, next) => {
     success: true,
     message: "Work permit uploaded successfully",
     data: permit.workPermitDoc,
+  });
+});
+
+//get inspection
+exports.getInspectionByApplicationId = catchAsyncError(
+  async (req, res, next) => {
+    const { applicationId } = req.params;
+
+    const inspection = await InspectionDetail.findOne({
+      contractorApplicationId: applicationId,
+      isDeleted: false,
+    }).lean();
+
+    if (!inspection) {
+      return next(new ErrorHandler("Inspection not found", 404));
+    }
+
+    const formatFiles = (files = []) =>
+      files.map((f) => ({
+        versionNumber: f.versionNumber,
+        fileUrl: f.fileUrl,
+        status: f.status,
+        isLatest: f.isLatest,
+        rejectionReason: f.rejectionReason || null,
+        rejectionReasonDoc: f.rejectionReasonDoc || null,
+        appointmentDateTime: f.appointmentDateTime || null,
+        uploadedAt: f.uploadedAt,
+      }));
+
+    const formatted = {
+      submissionId: inspection._id,
+      applicationId: inspection.contractorApplicationId,
+      inspectionType: inspection.inspectionType,
+
+      documents: {
+        sitePhoto: formatFiles(inspection.documents?.sitePhoto),
+        dcdCompletionCertificate: formatFiles(
+          inspection.documents?.dcdCompletionCertificate,
+        ),
+        certificate: formatFiles(inspection.documents?.certificate),
+        dmCompletionCertificate: formatFiles(
+          inspection.documents?.dmCompletionCertificate,
+        ),
+        architecturalAsBuilt: formatFiles(
+          inspection.documents?.architecturalAsBuilt,
+        ),
+        mepAsBuilt: formatFiles(inspection.documents?.mepAsBuilt),
+        structuralAsBuilt: formatFiles(inspection.documents?.structuralAsBuilt),
+        testCertificates: formatFiles(inspection.documents?.testCertificates),
+        commonAreaDamageClearance: formatFiles(
+          inspection.documents?.commonAreaDamageClearance,
+        ),
+        revisedAuthorityDrawings: formatFiles(
+          inspection.documents?.revisedAuthorityDrawings,
+        ),
+      },
+    };
+
+    res.status(200).json({
+      success: true,
+      data: formatted,
+    });
+  },
+);
+
+// review inspection
+exports.reviewInspectionFile = catchAsyncError(async (req, res, next) => {
+  const { submissionId, docType, action, rejectionReason, rejectionReasonDoc } =
+    req.body;
+
+  const validDocs = [
+    "sitePhoto",
+    "dcdCompletionCertificate",
+    "certificate",
+    "dmCompletionCertificate",
+    "architecturalAsBuilt",
+    "mepAsBuilt",
+    "structuralAsBuilt",
+    "testCertificates",
+    "commonAreaDamageClearance",
+    "revisedAuthorityDrawings",
+  ];
+
+  // ================= VALIDATION =================
+  if (!validDocs.includes(docType))
+    return next(new ErrorHandler("Invalid document type", 400));
+
+  if (!["APPROVE", "REJECT"].includes(action))
+    return next(new ErrorHandler("Invalid action", 400));
+
+  // Reject validation
+  if (action === "REJECT") {
+    if (!rejectionReason)
+      return next(new ErrorHandler("Rejection reason required", 400));
+
+    if (!rejectionReasonDoc)
+      return next(new ErrorHandler("Rejection document required", 400));
+  }
+
+  // ================= FETCH =================
+  const inspection = await InspectionDetail.findById(submissionId);
+
+  if (!inspection || inspection.isDeleted)
+    return next(new ErrorHandler("Inspection not found", 404));
+
+  const files = inspection.documents[docType];
+
+  if (!files?.length) return next(new ErrorHandler("No files found", 404));
+
+  // ================= LATEST VERSION =================
+  const file = files.find((f) => f.isLatest) || files[files.length - 1];
+
+  if (!file || file.status !== "PENDING")
+    return next(new ErrorHandler("File already reviewed", 400));
+
+  // ================= UPDATE =================
+  file.status = action === "APPROVE" ? "APPROVED" : "REJECTED";
+
+  file.rejectionReason = action === "REJECT" ? rejectionReason : null;
+
+  file.rejectionReasonDoc = action === "REJECT" ? rejectionReasonDoc : null;
+
+  file.approvedBy = req.user?._id || null;
+  file.approvedAt = new Date();
+
+  await inspection.save();
+
+  // ================= CHECK ALL APPROVED =================
+  const allDocs = Object.values(inspection.documents);
+
+  let allApproved = true;
+
+  for (let arr of allDocs) {
+    if (!arr.length) {
+      allApproved = false;
+      break;
+    }
+
+    const latest = arr.find((f) => f.isLatest) || arr[arr.length - 1];
+
+    if (!latest || latest.status !== "APPROVED") {
+      allApproved = false;
+      break;
+    }
+  }
+
+  // ================= UPDATE JOB STATUS =================
+  if (allApproved) {
+    await ContractorApplication.findByIdAndUpdate(
+      inspection.contractorApplicationId,
+      { jobStatus: "COMPLETED" },
+    );
+  }
+
+  // ================= RESPONSE =================
+  res.status(200).json({
+    success: true,
+    message:
+      action === "APPROVE"
+        ? "File approved successfully"
+        : "File rejected successfully",
+    data: {
+      docType,
+      versionNumber: file.versionNumber,
+      status: file.status,
+      rejectionReason: file.rejectionReason,
+      rejectionReasonDoc: file.rejectionReasonDoc,
+    },
   });
 });

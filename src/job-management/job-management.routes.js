@@ -12,6 +12,8 @@ const {
   getWorkPermitByApplicationId,
   reviewWorkPermitFile,
   uploadWorkPermitDoc,
+  getInspectionByApplicationId,
+  reviewInspectionFile,
 } = require("./job-management.controller");
 const { uploadFile } = require("../plot/plot.controller");
 const { upload } = require("../../utils/s3");
@@ -30,5 +32,7 @@ route.post("/upload/noc", uploadNOC);
 route.get("/work-permit/:applicationId", getWorkPermitByApplicationId);
 route.post("/work-permit/review", reviewWorkPermitFile);
 route.post("/upload/work-permit", uploadWorkPermitDoc);
+route.get("/inspection-detail/:applicationId", getInspectionByApplicationId);
+route.post("/inspection-detail/review", reviewInspectionFile);
 
 module.exports = route;
