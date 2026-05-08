@@ -6,6 +6,7 @@ const {
   getDocumentVersions,
   reviewDrawing,
   reuploadDrawing,
+  requestForRevision,
 } = require("./drawing-submission.controller");
 const { upload } = require("../../utils/s3");
 const { uploadFile } = require("../plot/plot.controller");
@@ -18,5 +19,6 @@ route.get("/all", getAllDrawings);
 route.get("/versions", getDocumentVersions);
 route.post("/review", reviewDrawing);
 route.post("/reupload", reuploadDrawing);
+route.patch("/request-for-revision/:drawingSubmissionId", requestForRevision);
 
 module.exports = route;

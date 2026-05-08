@@ -917,3 +917,169 @@ exports.reviewInspectionFile = catchAsyncError(async (req, res, next) => {
     },
   });
 });
+
+// ======================================================
+// GET REVIEWER LIST
+// ======================================================
+exports.getAssignableReviewers = catchAsyncError(async (req, res, next) => {
+  let { page = 1, limit = 10, search = "", roles } = req.query;
+
+  page = Number(page);
+  limit = Number(limit);
+
+  // ================= ROLE FILTER =================
+  const roleNames = roles
+    ? roles.split(",").filter((r) => ASSIGNABLE_ROLES.includes(r))
+    : ASSIGNABLE_ROLES;
+
+  const roleDocs = await Role.find({
+    name: {
+      $in: roleNames,
+    },
+  });
+
+  const roleIds = roleDocs.map((role) => role._id);
+
+  // ================= SEARCH =================
+  let searchQuery = {};
+
+  if (search) {
+    searchQuery.$or = [
+      {
+        name: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+
+      {
+        email: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+
+      {
+        mobile_number: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+    ];
+  }
+
+  // ================= FINAL QUERY =================
+  const query = {
+    isDeleted: false,
+    isVerified: true,
+
+    role: {
+      $in: roleIds,
+    },
+
+    ...searchQuery,
+  };
+
+  // ================= FETCH USERS =================
+  const users = await User.find(query)
+    .populate("role", "name")
+    .select("_id name email mobile_number role")
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .sort({
+      createdAt: -1,
+    });
+
+  const total = await User.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+
+    data: users,
+
+    pagination: {
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+    },
+  });
+});
+
+// ======================================================
+// ASSIGN REVIEWER TO DRAWING DOCUMENT
+// ======================================================
+exports.assignReviewer = catchAsyncError(async (req, res, next) => {
+  const {
+    drawingSubmissionId,
+    drawingType,
+    fileType,
+    versionNumber,
+    reviewerId,
+  } = req.body;
+
+  // ================= VALIDATION =================
+  if (
+    !drawingSubmissionId ||
+    !drawingType ||
+    !fileType ||
+    !versionNumber ||
+    !reviewerId
+  ) {
+    return next(new ErrorHandler("All fields are required", 400));
+  }
+
+  // ================= VALID TYPES =================
+  const validDrawingTypes = ["architectural", "mep", "structural"];
+
+  const validFileTypes = ["autoCad", "dwf"];
+
+  if (!validDrawingTypes.includes(drawingType)) {
+    return next(new ErrorHandler("Invalid drawing type", 400));
+  }
+
+  if (!validFileTypes.includes(fileType)) {
+    return next(new ErrorHandler("Invalid file type", 400));
+  }
+
+  // ================= CHECK REVIEWER =================
+  const reviewer = await User.findById(reviewerId).populate("role");
+
+  if (!reviewer) {
+    return next(new ErrorHandler("Reviewer not found", 404));
+  }
+
+  if (!ASSIGNABLE_ROLES.includes(reviewer.role.name)) {
+    return next(new ErrorHandler("User role not allowed", 400));
+  }
+
+  // ================= FIND DRAWING SUBMISSION =================
+  const drawingSubmission =
+    await DrawingSubmission.findById(drawingSubmissionId);
+
+  if (!drawingSubmission) {
+    return next(new ErrorHandler("Drawing submission not found", 404));
+  }
+
+  // ================= GET DOCUMENT ARRAY =================
+  const documents = drawingSubmission[drawingType][fileType];
+
+  // ================= FIND VERSION =================
+  const documentVersion = documents.find(
+    (doc) => doc.versionNumber === Number(versionNumber),
+  );
+
+  if (!documentVersion) {
+    return next(new ErrorHandler("Document version not found", 404));
+  }
+
+  // ================= ASSIGN REVIEWER =================
+  documentVersion.reviewer = reviewerId;
+
+  await drawingSubmission.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Reviewer assigned successfully",
+    data: drawingSubmission,
+  });
+});

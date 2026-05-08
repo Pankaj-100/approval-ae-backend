@@ -215,3 +215,65 @@ exports.reuploadDrawing = catchAsync(async (req, res, next) => {
     data: newVersion,
   });
 });
+// ======================================================
+// REQUEST FOR REVISION
+// ======================================================
+
+exports.requestForRevision = catchAsync(async (req, res, next) => {
+  const { drawingSubmissionId } = req.params;
+
+  // ================= FIND DRAWING SUBMISSION =================
+
+  const drawingSubmission =
+    await DrawingSubmission.findById(drawingSubmissionId);
+
+  if (!drawingSubmission) {
+    return next(new ErrorHandler("Drawing submission not found", 404));
+  }
+
+  // ================= DRAWING TYPES =================
+
+  const drawingTypes = ["architectural", "mep", "structural"];
+
+  // ================= FILE TYPES =================
+
+  const fileTypes = ["autoCad", "dwf"];
+
+  // ================= STORE LATEST VERSION =================
+
+  let latestVersion = 1;
+
+  // ================= MAKE OLD FILES NOT LATEST =================
+
+  drawingTypes.forEach((drawingType) => {
+    fileTypes.forEach((fileType) => {
+      drawingSubmission[drawingType][fileType].forEach((file) => {
+        // check latest file
+        if (file.isLatest) {
+          // store highest version number
+          latestVersion = Math.max(latestVersion, file.versionNumber);
+
+          // make old file
+          file.isLatest = false;
+        }
+      });
+    });
+  });
+
+  // ================= SAVE =================
+
+  await drawingSubmission.save();
+
+  // ================= RESPONSE =================
+
+  res.status(200).json({
+    success: true,
+
+    message: "Revision requested successfully",
+
+    // contractor will upload
+    // new files with this version
+
+    newVersion: latestVersion + 1,
+  });
+});

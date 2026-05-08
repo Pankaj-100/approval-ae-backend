@@ -33,6 +33,8 @@ const buildingRoutes = require("./src/Building/building.router");
 const slotRoutes = require("./src/superadmin-settings/slot/slot.routes");
 const pricingRoutes = require("./src/superadmin-settings/pricing/pricing.routes");
 const checklistRoutes = require("./src/superadmin-settings/checklist/checklist.routes");
+const scheduleSlot = require("./src/schedule-settings/schedule.routes");
+const reviewerSlot = require("./src/schedule-settings/reviewer-slot/reviewerSlot.routes");
 
 const app = express();
 
@@ -87,6 +89,8 @@ app.use("/api/v1/building", buildingRoutes);
 app.use("/api/v1/slot-settings", slotRoutes);
 app.use("/api/v1/pricing-settings", pricingRoutes);
 app.use("/api/v1/checklist-settings", checklistRoutes);
+app.use("/api/v1/schedule-slot", scheduleSlot);
+app.use("/api/v1/reviewer-slot", reviewerSlot);
 
 /* =========================
    HEALTH CHECK
