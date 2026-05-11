@@ -1,16 +1,26 @@
 const catchAsync = require("../../utils/catchAsyncError");
 const ErrorHandler = require("../../utils/errorHandler");
 const DrawingSubmission = require("./drawing-submission.model");
+const ContractorApplication = require("../contractor-application/contractor-application.model");
 
 const allowedTypes = ["architectural", "mep", "structural"];
 const allowedSubTypes = ["autoCad", "dwf"];
 
-//Submit Drawing (fileUrl based)
-exports.submitDrawing = catchAsync(async (req, res, next) => {
-  const { contractorApplicationId, type, subType, fileUrl, fileName } =
-    req.body;
+//Submit Drawing
 
-  if (!contractorApplicationId || !type || !subType || !fileUrl) {
+exports.submitDrawing = catchAsync(async (req, res, next) => {
+  const {
+    drawingSubmissionId,
+    contractorApplicationId,
+    type,
+    subType,
+    fileUrl,
+    fileName,
+  } = req.body;
+
+  // ================= VALIDATION =================
+
+  if (!type || !subType || !fileUrl) {
     return next(new ErrorHandler("Missing required fields", 400));
   }
 
@@ -18,43 +28,90 @@ exports.submitDrawing = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Invalid type or subType", 400));
   }
 
-  let doc = await DrawingSubmission.findOne({
-    contractorApplicationId,
-    isDeleted: false,
-  });
+  // ================= FIND DRAWING SUBMISSION =================
 
-  if (!doc) {
-    doc = await DrawingSubmission.create({ contractorApplicationId });
+  let doc;
+
+  // revision case
+  if (drawingSubmissionId) {
+    doc = await DrawingSubmission.findById(drawingSubmissionId);
   }
 
-  //safe init
+  // first time upload case
+  else {
+    if (!contractorApplicationId) {
+      return next(new ErrorHandler("contractorApplicationId is required", 400));
+    }
+
+    doc = await DrawingSubmission.findOne({
+      contractorApplicationId,
+      isDeleted: false,
+    });
+
+    // create first drawing submission
+    if (!doc) {
+      doc = await DrawingSubmission.create({
+        contractorApplicationId,
+      });
+    }
+  }
+
+  if (!doc) {
+    return next(new ErrorHandler("Drawing submission not found", 404));
+  }
+
+  // ================= SAFE INIT =================
+
   if (!doc[type]) doc[type] = {};
-  if (!doc[type][subType]) doc[type][subType] = [];
+
+  if (!doc[type][subType]) {
+    doc[type][subType] = [];
+  }
 
   const files = doc[type][subType];
 
-  // old versions not latest
-  files.forEach((f) => (f.isLatest = false));
+  // ================= OLD FILES NOT LATEST =================
+
+  files.forEach((f) => {
+    f.isLatest = false;
+  });
+
+  // ================= GET LAST VERSION =================
 
   const lastVersion = files[files.length - 1];
 
+  // ================= NEW VERSION =================
+
   const newVersion = {
     versionNumber: lastVersion ? lastVersion.versionNumber + 1 : 1,
+
     fileUrl,
+
     fileName,
+
     isLatest: true,
+
     status: "PENDING",
   };
 
+  // ================= PUSH NEW FILE =================
+
   files.push(newVersion);
+
+  // ================= SAVE =================
 
   await doc.save();
 
+  // ================= RESPONSE =================
+
   res.status(200).json({
     success: true,
+
     message: "Drawing submitted successfully",
+
     data: {
       drawingSubmissionId: doc._id,
+
       version: newVersion,
     },
   });
@@ -215,6 +272,7 @@ exports.reuploadDrawing = catchAsync(async (req, res, next) => {
     data: newVersion,
   });
 });
+
 // ======================================================
 // REQUEST FOR REVISION
 // ======================================================
@@ -231,38 +289,37 @@ exports.requestForRevision = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Drawing submission not found", 404));
   }
 
-  // ================= DRAWING TYPES =================
+  // ================= FIND CONTRACTOR APPLICATION =================
 
-  const drawingTypes = ["architectural", "mep", "structural"];
+  const contractorApplication = await ContractorApplication.findById(
+    drawingSubmission.contractorApplicationId,
+  );
 
-  // ================= FILE TYPES =================
+  if (!contractorApplication) {
+    return next(new ErrorHandler("Contractor application not found", 404));
+  }
 
-  const fileTypes = ["autoCad", "dwf"];
+  // ================= OLD DRAWING SUBMISSION DELETE =================
 
-  // ================= STORE LATEST VERSION =================
-
-  let latestVersion = 1;
-
-  // ================= MAKE OLD FILES NOT LATEST =================
-
-  drawingTypes.forEach((drawingType) => {
-    fileTypes.forEach((fileType) => {
-      drawingSubmission[drawingType][fileType].forEach((file) => {
-        // check latest file
-        if (file.isLatest) {
-          // store highest version number
-          latestVersion = Math.max(latestVersion, file.versionNumber);
-
-          // make old file
-          file.isLatest = false;
-        }
-      });
-    });
-  });
-
-  // ================= SAVE =================
+  drawingSubmission.isDeleted = true;
 
   await drawingSubmission.save();
+
+  // ================= INCREASE APPLICATION VERSION =================
+
+  contractorApplication.currentVersion += 1;
+
+  await contractorApplication.save();
+
+  // ================= CREATE NEW EMPTY DRAWING SUBMISSION =================
+
+  const newDrawingSubmission = await DrawingSubmission.create({
+    contractorApplicationId: contractorApplication._id,
+
+    floorId: drawingSubmission.floorId,
+
+    floorUnitId: drawingSubmission.floorUnitId,
+  });
 
   // ================= RESPONSE =================
 
@@ -271,9 +328,10 @@ exports.requestForRevision = catchAsync(async (req, res, next) => {
 
     message: "Revision requested successfully",
 
-    // contractor will upload
-    // new files with this version
+    data: {
+      currentVersion: contractorApplication.currentVersion,
 
-    newVersion: latestVersion + 1,
+      drawingSubmissionId: newDrawingSubmission._id,
+    },
   });
 });
