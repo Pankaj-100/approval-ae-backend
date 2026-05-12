@@ -154,3 +154,66 @@ exports.deletePolicy = async (req, res) => {
     });
   }
 };
+
+exports.getPolicyForUser = async (req, res) => {
+  try {
+    const { policyType } = req.query;
+
+    if (!policyType) {
+      return res.status(400).json({
+        success: false,
+        message: "Policy type is required",
+      });
+    }
+
+    const userRole = req.user.role.name;
+
+    let policyRole = userRole;
+
+    // employee roles mapping
+    const employeeRoles = [
+      "REVIEW_ENGINEER",
+      "SUB_ADMIN",
+      "INSPECTION_AGENT",
+      "ARCHITECT",
+    ];
+
+    if (employeeRoles.includes(userRole)) {
+      policyRole = "Employees";
+    }
+
+    //landlord mapping
+    if (userRole === "LANDLORD") {
+      policyRole = "Landlord";
+    }
+
+    //contractor mapping
+    if (userRole === "CONTRACTOR") {
+      policyRole = "Contractor";
+    }
+
+    const policy = await Policy.findOne({
+      policyType,
+      role: policyRole,
+      isDeleted: false,
+    });
+
+    if (!policy) {
+      return res.status(404).json({
+        success: false,
+        message: "Policy not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Policy fetched successfully",
+      data: policy,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

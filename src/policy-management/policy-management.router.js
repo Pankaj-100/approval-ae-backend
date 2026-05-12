@@ -6,7 +6,9 @@ const {
   getSinglePolicy,
   updatePolicy,
   deletePolicy,
+  getPolicyForUser,
 } = require("./policy-management.controller");
+const { auth } = require("../../middleware/auth");
 
 const route = express.Router();
 
@@ -15,5 +17,6 @@ route.get("/content", getAllPolicies);
 route.get("/single-content", getSinglePolicy);
 route.put("/content/:id", updatePolicy);
 route.delete("/content/:id", deletePolicy);
+route.get("/user/content", auth, getPolicyForUser);
 
 module.exports = route;
