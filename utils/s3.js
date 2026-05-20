@@ -72,8 +72,34 @@ const fileFilter = (req, file, cb) => {
     return cb(null, true);
   }
 
+  // allow DWG / AutoCAD files
+  const allowedCadTypes = [
+    // DWG
+    "application/acad",
+    "application/x-acad",
+    "application/autocad_dwg",
+    "application/dwg",
+    "application/x-dwg",
+    "image/vnd.dwg",
+
+    // AutoCAD generic
+    "application/x-autocad",
+    "application/autocad",
+
+    // DXF (AutoCAD drawing exchange format)
+    "application/dxf",
+    "application/x-dxf",
+
+    // Generic binary
+    "application/octet-stream",
+  ];
+
+  if (allowedCadTypes.includes(mimetype)) {
+    return cb(null, true);
+  }
+
   // reject other files
-  cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE"), false);
+  cb(new Error("Only images, PDF, DWG and AutoCAD files are allowed"), false);
 };
 
 exports.upload = multer({
