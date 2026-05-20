@@ -108,6 +108,7 @@ exports.getUnitsByFloorId = catchAsync(async (req, res, next) => {
   const units = await Unit.find({
     floorId,
     isDeleted: false,
+    status: "AVAILABLE",
   }).select("_id unitId usageType tenantName totalSqm");
 
   // check empty
