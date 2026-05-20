@@ -127,6 +127,7 @@ exports.getUnitsByFloorId = catchAsync(async (req, res, next) => {
 exports.getAllApplications = catchAsync(async (req, res, next) => {
   const applications = await ContractorApplication.find({
     isDeleted: false,
+    contractorId: req.user._id,
   })
     .populate("buildingId", "buildingName")
     .populate("unitId", "unitId usageType totalSqm availableSqm usedSqm status")
