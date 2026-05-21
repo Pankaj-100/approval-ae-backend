@@ -9,36 +9,78 @@ const approvedDocumentSchema = new mongoose.Schema(
     },
 
     architecturalDrawing: {
-      url: {
-        type: String,
-        default: null,
+      type: {
+        url: {
+          type: String,
+          default: null,
+        },
+
+        fileName: {
+          type: String,
+          default: null,
+        },
+
+        fileSize: {
+          type: Number,
+          default: null,
+        },
+
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
-      date: {
-        type: Date,
-        default: Date.now,
-      },
+      default: {},
     },
 
     structuralDrawing: {
-      url: {
-        type: String,
-        default: null,
+      type: {
+        url: {
+          type: String,
+          default: null,
+        },
+
+        fileName: {
+          type: String,
+          default: null,
+        },
+
+        fileSize: {
+          type: Number,
+          default: null,
+        },
+
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
-      date: {
-        type: Date,
-        default: Date.now,
-      },
+      default: {},
     },
 
     mepDrawing: {
-      url: {
-        type: String,
-        default: null,
+      type: {
+        url: {
+          type: String,
+          default: null,
+        },
+
+        fileName: {
+          type: String,
+          default: null,
+        },
+
+        fileSize: {
+          type: Number,
+          default: null,
+        },
+
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
-      date: {
-        type: Date,
-        default: Date.now,
-      },
+      default: {},
     },
 
     isDeleted: {

@@ -84,7 +84,11 @@ exports.uploadFile = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: { docUrl },
+      data: {
+        docUrl,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+      },
       message: "File uploaded successfully",
     });
   } catch (error) {
@@ -280,9 +284,24 @@ exports.createProject = catchAsync(async (req, res, next) => {
         floorName: floor.floorName,
         totalFloorAreaSqm: floor.totalFloorAreaSqm,
         circulationAreaSqm: floor.circulationAreaSqm,
-        architecturalDrawing: floor.architecturalDrawing || null,
-        structuralDrawing: floor.structuralDrawing || null,
-        mepDrawing: floor.mepDrawing || null,
+
+        architecturalDrawing: {
+          url: floor?.architecturalDrawing?.url || null,
+          fileName: floor?.architecturalDrawing?.fileName || null,
+          fileSize: floor?.architecturalDrawing?.fileSize || null,
+        },
+
+        structuralDrawing: {
+          url: floor?.structuralDrawing?.url || null,
+          fileName: floor?.structuralDrawing?.fileName || null,
+          fileSize: floor?.structuralDrawing?.fileSize || null,
+        },
+
+        mepDrawing: {
+          url: floor?.mepDrawing?.url || null,
+          fileName: floor?.mepDrawing?.fileName || null,
+          fileSize: floor?.mepDrawing?.fileSize || null,
+        },
       });
 
       let createdUnits = [];
@@ -310,14 +329,27 @@ exports.createProject = catchAsync(async (req, res, next) => {
 
       const approvedDoc = await ApprovedDocument.create({
         floorId: newFloor._id,
+
         architecturalDrawing: {
-          url: floor?.approvedDocuments?.architecturalDrawing || null,
+          url: floor?.approvedDocuments?.architecturalDrawing?.url || null,
+          fileName:
+            floor?.approvedDocuments?.architecturalDrawing?.fileName || null,
+          fileSize:
+            floor?.approvedDocuments?.architecturalDrawing?.fileSize || null,
         },
+
         structuralDrawing: {
-          url: floor?.approvedDocuments?.structuralDrawing || null,
+          url: floor?.approvedDocuments?.structuralDrawing?.url || null,
+          fileName:
+            floor?.approvedDocuments?.structuralDrawing?.fileName || null,
+          fileSize:
+            floor?.approvedDocuments?.structuralDrawing?.fileSize || null,
         },
+
         mepDrawing: {
-          url: floor?.approvedDocuments?.mepDrawing || null,
+          url: floor?.approvedDocuments?.mepDrawing?.url || null,
+          fileName: floor?.approvedDocuments?.mepDrawing?.fileName || null,
+          fileSize: floor?.approvedDocuments?.mepDrawing?.fileSize || null,
         },
       });
 

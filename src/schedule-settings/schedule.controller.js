@@ -4,6 +4,8 @@ const catchAsyncError = require("../../utils/catchAsyncError");
 const ErrorHandler = require("../../utils/errorHandler");
 const SlotTiming = require("../superadmin-settings/slot/slot.model");
 const { formatSlotRange } = require("../../utils/slotHelper");
+const User = require("../modules/user/user.model");
+const Role = require("../modules/role/role.model");
 
 // ================= CREATE APPOINTMENT =================
 exports.createAppointment = catchAsyncError(async (req, res, next) => {
@@ -326,7 +328,6 @@ exports.getAvailableSlots = catchAsyncError(async (req, res, next) => {
   });
 });
 
-
 // ======================================================
 // CREATE INSPECTION APPOINTMENT
 // ======================================================
@@ -439,8 +440,6 @@ exports.rescheduleInspectionAppointment = catchAsyncError(
       isActive: true,
     });
 
-    
-
     if (!slotTiming) {
       return next(new ErrorHandler("Slot timing not found", 404));
     }
@@ -542,3 +541,77 @@ exports.cancelInspectionAppointment = catchAsyncError(
     });
   },
 );
+
+exports.getReviewerList = catchAsyncError(async (req, res, next) => {
+  let { page = 1, limit = 10, search = "" } = req.query;
+
+  page = Number(page);
+  limit = Number(limit);
+
+  // only required reviewer roles
+  const roleDocs = await Role.find({
+    name: {
+      $in: ["ARCHITECT", "REVIEW_ENGINEER"],
+    },
+  });
+
+  const roleIds = roleDocs.map((role) => role._id);
+
+  let searchQuery = {};
+
+  if (search) {
+    searchQuery.$or = [
+      {
+        name: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+      {
+        email: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+      {
+        mobile_number: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+    ];
+  }
+
+  const query = {
+    isDeleted: false,
+    isVerified: true,
+
+    role: {
+      $in: roleIds,
+    },
+
+    ...searchQuery,
+  };
+
+  const reviewers = await User.find(query)
+    .populate("role", "name")
+    .select("_id name email mobile_number role")
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .sort({
+      createdAt: -1,
+    });
+
+  const total = await User.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: reviewers,
+
+    pagination: {
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+    },
+  });
+});

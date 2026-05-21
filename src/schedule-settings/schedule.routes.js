@@ -10,6 +10,7 @@ const {
   createInspectionAppointment,
   rescheduleInspectionAppointment,
   cancelInspectionAppointment,
+  getReviewerList,
 } = require("./schedule.controller");
 
 const route = express.Router();
@@ -52,5 +53,8 @@ route.patch(
   "/cancel-inspection-appointment/:appointmentId",
   cancelInspectionAppointment,
 );
+
+// ================= REVIEWER LIST =================
+route.get("/reviewers", getReviewerList);
 
 module.exports = route;
