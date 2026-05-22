@@ -5,8 +5,12 @@ const {
   getReviewerBlockedSlots,
   getAvailableSlots,
 } = require("./reviewerSlot.controller");
+const { auth } = require("../../../middleware/auth");
 
 const route = express.Router();
+
+// apply auth to all routes
+route.use(auth);
 
 // Block Slots
 route.post("/block-slots", blockReviewerSlots);
