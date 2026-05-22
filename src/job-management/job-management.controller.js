@@ -323,6 +323,11 @@ exports.reviewApplication = catchAsyncError(async (req, res, next) => {
   // ================= UPDATE JOB STATUS =================
   if (action === "APPROVE") {
     application.jobStatus = "DESIGN_REVIEW";
+    application.approvalStatus = "APPROVED";
+  }
+
+  if (action === "REJECT") {
+    application.approvalStatus = "REJECTED";
   }
 
   await application.save();
@@ -338,6 +343,7 @@ exports.reviewApplication = catchAsyncError(async (req, res, next) => {
       applicationId: application._id,
       status: latest.status,
       jobStatus: application.jobStatus,
+      approvalStatus: application.approvalStatus,
       remarks: latest.remarks,
     },
   });

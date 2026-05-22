@@ -12,6 +12,9 @@ const { auth } = require("../../middleware/auth");
 
 const route = express.Router();
 
+// apply auth to all routes
+route.use(auth);
+
 route.post("/content", createPolicy);
 route.get("/content", getAllPolicies);
 route.get("/single-content", getSinglePolicy);

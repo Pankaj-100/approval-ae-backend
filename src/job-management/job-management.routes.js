@@ -19,8 +19,13 @@ const {
 } = require("./job-management.controller");
 const { uploadFile } = require("../plot/plot.controller");
 const { upload } = require("../../utils/s3");
+const { auth } = require("../../middleware/auth");
 
 const route = express.Router();
+
+// apply auth to all routes
+route.use(auth);
+
 route.post("/upload", upload.single("file"), uploadFile);
 route.get("/users/assignable", getAssignableUsers);
 route.patch("/application/:applicationId/assign", assignEmployee);

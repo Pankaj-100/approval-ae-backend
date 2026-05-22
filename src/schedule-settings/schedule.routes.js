@@ -12,8 +12,12 @@ const {
   cancelInspectionAppointment,
   getReviewerList,
 } = require("./schedule.controller");
+const { auth } = require("../../middleware/auth");
 
 const route = express.Router();
+
+// apply auth to all routes
+route.use(auth);
 
 // ================= CREATE APPOINTMENT =================
 route.post("/create-appointment", createAppointment);

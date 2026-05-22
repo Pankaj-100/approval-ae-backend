@@ -10,8 +10,12 @@ const {
   reorderChecklistItems,
   updateChecklist,
 } = require("./checklist.controller");
+const { auth } = require("../../../middleware/auth");
 
 const route = express.Router();
+
+// apply auth on all routes
+route.use(auth);
 
 // ================= CHECKLIST CATEGORY =================
 

@@ -18,13 +18,16 @@ const { auth } = require("../../middleware/auth");
 
 const route = express.Router();
 
+// apply auth to all routes
+route.use(auth);
+
 route.post("/upload", upload.single("file"), uploadFile);
-route.get("/application", auth, getAllApplications);
+route.get("/application", getAllApplications);
 route.get("/building/:plotNumber", getBuildingsByPlotNumber);
 route.get("/floor/:buildingId", getFloorsByBuildingId);
 route.get("/unit/:floorId", getUnitsByFloorId);
 route.get("/:id", getApplicationById);
-route.post("/submit-application", auth, (req, res, next) => {
+route.post("/submit-application", (req, res, next) => {
   if (req.body.unitType === "Redesign Unit") {
     return submitApplicationRedesign(req, res, next);
   }

@@ -10,8 +10,13 @@ const {
   getAllProjects,
 } = require("./plot.controller");
 const { upload } = require("../../utils/s3");
+const { auth } = require("../../middleware/auth");
 
 const route = express.Router();
+
+// apply auth on all routes
+route.use(auth);
+
 route.get("/all", getAllProjects);
 route.post("/upload", upload.single("file"), uploadFile);
 route.post("/create-project", createProject);
@@ -20,6 +25,5 @@ route.put("/:id", updatePlot);
 route.get("/", getAllPlots);
 route.get("/:id", getPlotById);
 route.delete("/:id", deletePlot);
-
 
 module.exports = route;
