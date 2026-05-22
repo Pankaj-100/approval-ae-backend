@@ -823,7 +823,11 @@ exports.reviewWorkPermitFile = catchAsyncError(async (req, res, next) => {
     }
   }
 
-  if (allApproved) {
+  // check work permit doc uploaded
+  const hasWorkPermitDoc =
+    submission.workPermitDoc && submission.workPermitDoc.fileUrl;
+
+  if (allApproved && hasWorkPermitDoc) {
     await ContractorApplication.findByIdAndUpdate(
       submission.contractorApplicationId,
       { jobStatus: "INSPECTION" },
@@ -875,6 +879,40 @@ exports.uploadWorkPermitDoc = catchAsyncError(async (req, res, next) => {
   };
 
   await permit.save();
+
+  // =====================================================
+  // CHECK ALL DOCUMENTS APPROVED
+  // =====================================================
+  const allDocs = Object.values(permit.documents);
+
+  let allApproved = true;
+
+  for (let arr of allDocs) {
+    // check document exists
+    if (!arr.length) {
+      allApproved = false;
+      break;
+    }
+
+    // get latest file
+    const latest = arr.find((f) => f.isLatest) || arr[arr.length - 1];
+
+    // check latest approved
+    if (!latest || latest.status !== "APPROVED") {
+      allApproved = false;
+      break;
+    }
+  }
+
+  // =====================================================
+  // MOVE TO INSPECTION
+  // only if all docs already approved
+  // =====================================================
+  if (allApproved) {
+    application.jobStatus = "INSPECTION";
+
+    await application.save();
+  }
 
   res.status(200).json({
     success: true,
