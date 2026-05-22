@@ -5,6 +5,7 @@ const catchAsyncError = require("../../utils/catchAsyncError");
 const ErrorHandler = require("../../utils/errorHandler");
 const DrawingSubmission = require("../drawing-submission/drawing-submission.model");
 const WorkPermit = require("../work-permit/workPermit.model");
+const Unit = require("../floor-unit/floor-unit.model");
 const InspectionDetail = require("../inspection-detail/inspectionDetail.model");
 
 const ASSIGNABLE_ROLES = ["ARCHITECT", "REVIEW_ENGINEER", "INSPECTION_AGENT"];
@@ -278,21 +279,93 @@ exports.getApplicationById = catchAsyncError(async (req, res, next) => {
 });
 
 //review application
+// exports.reviewApplication = catchAsyncError(async (req, res, next) => {
+//   const { applicationId } = req.params;
+//   const { action, remarks } = req.body;
+
+//   // ================= VALIDATION =================
+//   if (!["APPROVE", "REJECT"].includes(action)) {
+//     return next(new ErrorHandler("Invalid action", 400));
+//   }
+
+//   // reject me reason required
+//   if (action === "REJECT" && !remarks) {
+//     return next(new ErrorHandler("Remarks is required for rejection", 400));
+//   }
+
+//   // ================= FETCH =================
+//   const application = await ContractorApplication.findOne({
+//     _id: applicationId,
+//     isDeleted: false,
+//   });
+
+//   if (!application) {
+//     return next(new ErrorHandler("Application not found", 404));
+//   }
+
+//   // ================= LATEST VERSION =================
+//   const latest = application.versions[application.versions.length - 1];
+
+//   if (!latest) {
+//     return next(new ErrorHandler("No version found", 400));
+//   }
+
+//   // ================= CHECK ALREADY REVIEWED =================
+//   if (latest.status === "APPROVED" || latest.status === "REJECTED") {
+//     return next(new ErrorHandler("Application already reviewed", 400));
+//   }
+
+//   // ================= UPDATE VERSION =================
+//   latest.status = action === "APPROVE" ? "APPROVED" : "REJECTED";
+//   latest.remarks = action === "REJECT" ? remarks : null;
+//   latest.reviewedAt = new Date();
+//   latest.reviewedBy = req.user?._id || null;
+
+//   // ================= UPDATE JOB STATUS =================
+//   if (action === "APPROVE") {
+//     application.jobStatus = "DESIGN_REVIEW";
+//     application.approvalStatus = "APPROVED";
+//   }
+
+//   if (action === "REJECT") {
+//     application.approvalStatus = "REJECTED";
+//   }
+
+//   await application.save();
+
+//   // ================= RESPONSE =================
+//   res.status(200).json({
+//     success: true,
+//     message:
+//       action === "APPROVE"
+//         ? "Application approved successfully"
+//         : "Application rejected successfully",
+//     data: {
+//       applicationId: application._id,
+//       status: latest.status,
+//       jobStatus: application.jobStatus,
+//       approvalStatus: application.approvalStatus,
+//       remarks: latest.remarks,
+//     },
+//   });
+// });
+
 exports.reviewApplication = catchAsyncError(async (req, res, next) => {
   const { applicationId } = req.params;
+
   const { action, remarks } = req.body;
 
-  // ================= VALIDATION =================
+  // check action is valid
   if (!["APPROVE", "REJECT"].includes(action)) {
     return next(new ErrorHandler("Invalid action", 400));
   }
 
-  // reject me reason required
+  // remarks required for reject
   if (action === "REJECT" && !remarks) {
     return next(new ErrorHandler("Remarks is required for rejection", 400));
   }
 
-  // ================= FETCH =================
+  // find application
   const application = await ContractorApplication.findOne({
     _id: applicationId,
     isDeleted: false,
@@ -302,48 +375,102 @@ exports.reviewApplication = catchAsyncError(async (req, res, next) => {
     return next(new ErrorHandler("Application not found", 404));
   }
 
-  // ================= LATEST VERSION =================
+  // get latest version
   const latest = application.versions[application.versions.length - 1];
 
   if (!latest) {
     return next(new ErrorHandler("No version found", 400));
   }
 
-  // ================= CHECK ALREADY REVIEWED =================
+  // check already reviewed
   if (latest.status === "APPROVED" || latest.status === "REJECTED") {
     return next(new ErrorHandler("Application already reviewed", 400));
   }
 
-  // ================= UPDATE VERSION =================
+  // update version status
   latest.status = action === "APPROVE" ? "APPROVED" : "REJECTED";
+
+  // save remarks for reject
   latest.remarks = action === "REJECT" ? remarks : null;
+
+  // save review details
   latest.reviewedAt = new Date();
+
   latest.reviewedBy = req.user?._id || null;
 
-  // ================= UPDATE JOB STATUS =================
+  // approve case
   if (action === "APPROVE") {
+    // move to next stage
     application.jobStatus = "DESIGN_REVIEW";
+
+    // update main status
     application.approvalStatus = "APPROVED";
   }
 
+  // reject case
   if (action === "REJECT") {
+    // update main status
     application.approvalStatus = "REJECTED";
+
+    // rollback redesign units
+    if (application.unitType === "Redesign Unit") {
+      const redesign = latest.redesign;
+
+      // make old units available again
+      if (redesign?.inputUnits?.length) {
+        const inputUnitIds = redesign.inputUnits.map((u) => u.unitId);
+
+        await Unit.updateMany(
+          {
+            _id: {
+              $in: inputUnitIds,
+            },
+          },
+          {
+            status: "AVAILABLE",
+          },
+        );
+      }
+
+      // delete newly created units
+      if (redesign?.resultUnits?.length) {
+        const createdUnitNames = redesign.resultUnits.map((u) => u.name);
+
+        await Unit.updateMany(
+          {
+            unitId: {
+              $in: createdUnitNames,
+            },
+          },
+          {
+            isDeleted: true,
+          },
+        );
+      }
+    }
   }
 
+  // save application
   await application.save();
 
-  // ================= RESPONSE =================
+  // response
   res.status(200).json({
     success: true,
+
     message:
       action === "APPROVE"
         ? "Application approved successfully"
         : "Application rejected successfully",
+
     data: {
       applicationId: application._id,
+
       status: latest.status,
+
       jobStatus: application.jobStatus,
+
       approvalStatus: application.approvalStatus,
+
       remarks: latest.remarks,
     },
   });
