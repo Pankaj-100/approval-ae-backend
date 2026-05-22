@@ -8,6 +8,8 @@ const BuildingDetails = require("../Building/building.model");
 const ApprovedDocument = require("../approved-documents/approved-documents.model");
 const ErrorHandler = require("../../utils/errorHandler");
 const catchAsync = require("../../utils/catchAsyncError");
+const ContractorApplication = require("../contractor-application/contractor-application.model");
+const Unit = require("../floor-unit/floor-unit.model");
 
 const awsUrl = process.env.AWS_BASE_URL;
 
@@ -483,3 +485,338 @@ exports.getAllProjects = async (req, res) => {
     });
   }
 };
+
+// ================= ADD FLOOR ONLY =================
+
+exports.addFloorToProject = catchAsync(async (req, res, next) => {
+  const { buildingId } = req.params;
+
+  const {
+    floorName,
+    totalFloorAreaSqm,
+    circulationAreaSqm,
+    architecturalDrawing,
+    structuralDrawing,
+    mepDrawing,
+  } = req.body;
+
+  // CHECK BUILDING
+  const building = await BuildingDetails.findById(buildingId);
+
+  if (!building || building.isDeleted) {
+    return next(new ErrorHandler("Building not found", 404));
+  }
+
+  // CHECK FLOOR ALREADY EXISTS
+  const existFloor = await FloorDetails.findOne({
+    buildingId,
+    floorName,
+    isDeleted: false,
+  });
+
+  if (existFloor) {
+    return next(new ErrorHandler("Floor already exists", 400));
+  }
+
+  // CREATE FLOOR
+  const newFloor = await FloorDetails.create({
+    buildingId,
+
+    floorName,
+    totalFloorAreaSqm,
+    circulationAreaSqm,
+
+    architecturalDrawing: {
+      url: architecturalDrawing?.url || null,
+      fileName: architecturalDrawing?.fileName || null,
+      fileSize: architecturalDrawing?.fileSize || null,
+    },
+
+    structuralDrawing: {
+      url: structuralDrawing?.url || null,
+      fileName: structuralDrawing?.fileName || null,
+      fileSize: structuralDrawing?.fileSize || null,
+    },
+
+    mepDrawing: {
+      url: mepDrawing?.url || null,
+      fileName: mepDrawing?.fileName || null,
+      fileSize: mepDrawing?.fileSize || null,
+    },
+  });
+
+  res.status(201).json({
+    success: true,
+    message: "Floor added successfully",
+    data: newFloor,
+  });
+});
+
+// ================= DELETE FLOOR =================
+
+exports.deleteFloor = catchAsync(async (req, res, next) => {
+  const { floorId } = req.params;
+
+  const floor = await FloorDetails.findById(floorId);
+
+  if (!floor || floor.isDeleted) {
+    return next(new ErrorHandler("Floor not found", 404));
+  }
+
+  // SOFT DELETE FLOOR
+  floor.isDeleted = true;
+  floor.isActive = false;
+
+  await floor.save();
+
+  // DELETE UNITS
+  await UnitDetails.updateMany(
+    { floorId },
+    {
+      isDeleted: true,
+      isActive: false,
+    },
+  );
+
+  // DELETE APPROVED DOCS
+  await ApprovedDocument.updateMany(
+    { floorId },
+    {
+      isDeleted: true,
+      isActive: false,
+    },
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Floor deleted successfully",
+  });
+});
+
+// ================= GET ALL FLOORS OF PROJECT =================
+
+exports.getProjectFloors = catchAsync(async (req, res, next) => {
+  const { buildingId } = req.params;
+
+  const building = await BuildingDetails.findById(buildingId);
+
+  if (!building || building.isDeleted) {
+    return next(new ErrorHandler("Building not found", 404));
+  }
+
+  const floors = await FloorDetails.find({
+    buildingId,
+    isDeleted: false,
+  }).lean();
+
+  const finalFloors = [];
+
+  for (let floor of floors) {
+    const units = await UnitDetails.find({
+      floorId: floor._id,
+      isDeleted: false,
+    });
+
+    const approvedDocuments = await ApprovedDocument.findOne({
+      floorId: floor._id,
+      isDeleted: false,
+    });
+
+    finalFloors.push({
+      ...floor,
+      units,
+      approvedDocuments,
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    count: finalFloors.length,
+    data: finalFloors,
+  });
+});
+
+// ================= GET UNITS BY FLOOR =================
+
+exports.getUnitsByFloor = catchAsync(async (req, res, next) => {
+  const { floorId } = req.params;
+
+  const floor = await FloorDetails.findById(floorId);
+
+  if (!floor || floor.isDeleted) {
+    return next(new ErrorHandler("Floor not found", 404));
+  }
+
+  const units = await UnitDetails.find({
+    floorId,
+    isDeleted: false,
+  });
+
+  res.status(200).json({
+    success: true,
+    count: units.length,
+    data: units,
+  });
+});
+
+// ================= ADD UNIT =================
+
+exports.addUnit = catchAsync(async (req, res, next) => {
+  const { buildingId, floorId } = req.params;
+
+  const { unitId, tenantName, usageType, fitOutWork, totalSqm, electricMeter } =
+    req.body;
+
+  // CHECK FLOOR
+  const floor = await FloorDetails.findById(floorId);
+
+  if (!floor || floor.isDeleted) {
+    return next(new ErrorHandler("Floor not found", 404));
+  }
+
+  // CHECK UNIT EXISTS
+  const existUnit = await UnitDetails.findOne({
+    floorId,
+    unitId,
+    isDeleted: false,
+  });
+
+  if (existUnit) {
+    return next(new ErrorHandler("Unit already exists", 400));
+  }
+
+  // CREATE UNIT
+  const newUnit = await UnitDetails.create({
+    buildingId,
+    floorId,
+
+    unitId,
+    tenantName: tenantName || null,
+    usageType,
+    fitOutWork,
+    totalSqm,
+    electricMeter: electricMeter || null,
+  });
+
+  res.status(201).json({
+    success: true,
+    message: "Unit added successfully",
+    data: newUnit,
+  });
+});
+
+// ================= DELETE UNIT =================
+
+exports.deleteUnit = catchAsync(async (req, res, next) => {
+  const { unitId } = req.params;
+
+  const unit = await UnitDetails.findById(unitId);
+
+  if (!unit || unit.isDeleted) {
+    return next(new ErrorHandler("Unit not found", 404));
+  }
+
+  unit.isDeleted = true;
+  unit.isActive = false;
+
+  await unit.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Unit deleted successfully",
+  });
+});
+
+// ================= GET UNIT DETAILS WITH APPLICATION =================
+
+exports.getUnitDetailsWithApplication = catchAsync(async (req, res, next) => {
+  const { unitId } = req.params;
+
+  // CHECK UNIT EXISTS
+  const unit = await Unit.findOne({
+    _id: unitId,
+    isDeleted: false,
+  }).lean();
+
+  // UNIT NOT FOUND
+  if (!unit) {
+    return next(new ErrorHandler("Unit not found", 404));
+  }
+
+  // FIND APPLICATION RELATED TO THIS UNIT
+  const application = await ContractorApplication.findOne({
+    isDeleted: false,
+
+    // CHECK NORMAL UNIT OR REDESIGN UNIT
+    $or: [
+      { unitId: unitId },
+      { "versions.redesign.inputUnits.unitId": unitId },
+    ],
+  })
+    // POPULATE BASIC DETAILS
+    .populate("plotId", "plotNumber")
+    .populate("buildingId", "buildingName")
+    .populate("floorId", "floorName")
+    .lean();
+
+  // RESPONSE
+  res.status(200).json({
+    success: true,
+    data: {
+      unit,
+      application: application || null,
+    },
+  });
+});
+
+// ================= GET PROJECT DETAILS =================
+
+exports.getProjectDetails = catchAsync(async (req, res, next) => {
+  const { buildingId } = req.params;
+
+  // CHECK BUILDING
+  const building = await BuildingDetails.findOne({
+    _id: buildingId,
+    isDeleted: false,
+  }).lean();
+
+  // BUILDING NOT FOUND
+  if (!building) {
+    return next(new ErrorHandler("Building not found", 404));
+  }
+
+  // GET PLOT DETAILS
+  const plot = await PlotDetails.findById(building.plotId).lean();
+
+  // GET ALL FLOORS
+  const floors = await FloorDetails.find({
+    buildingId,
+    isDeleted: false,
+  }).lean();
+
+  let finalFloors = [];
+
+  // LOOP ALL FLOORS
+  for (let floor of floors) {
+    // GET UNITS OF FLOOR
+    const units = await Unit.find({
+      floorId: floor._id,
+      isDeleted: false,
+    }).lean();
+
+    finalFloors.push({
+      ...floor,
+      units,
+    });
+  }
+
+  // RESPONSE
+  res.status(200).json({
+    success: true,
+    data: {
+      plot,
+      building,
+      floors: finalFloors,
+    },
+  });
+});
