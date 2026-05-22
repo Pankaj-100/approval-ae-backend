@@ -7,8 +7,12 @@ const {
   reviewInspection,
   reuploadInspection,
 } = require("./inspectionDetail.controller");
+const { auth } = require("../../middleware/auth");
 
 const route = express.Router();
+
+// apply auth on all routes
+route.use(auth);
 
 route.post("/submit", submitInspection);
 route.get("/all", getAllInspection);
