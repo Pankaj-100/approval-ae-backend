@@ -135,6 +135,8 @@ exports.getAllDrawings = catchAsync(async (req, res, next) => {
   res.status(200).json({
     success: true,
     data: {
+      drawingSubmissionId: doc._id,
+
       architectural: {
         autoCad: getLatest(doc.architectural?.autoCad),
         dwf: getLatest(doc.architectural?.dwf),
