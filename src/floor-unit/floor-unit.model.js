@@ -20,6 +20,12 @@ const unitSchema = new mongoose.Schema(
       trim: true,
     },
 
+    tenantName: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+
     usageType: {
       type: String,
       required: true,
