@@ -1254,3 +1254,51 @@ exports.assignReviewer = catchAsyncError(async (req, res, next) => {
     data: drawingSubmission,
   });
 });
+
+// ================= GET NOC DOCUMENT =================
+exports.getNOC = catchAsyncError(async (req, res, next) => {
+  const { applicationId } = req.params;
+
+  const application = await ContractorApplication.findById(applicationId);
+
+  if (!application || application.isDeleted) {
+    return next(new ErrorHandler("Application not found", 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      applicationId: application._id,
+      jobStatus: application.jobStatus,
+      nocDocument: application.nocDocument || null,
+    },
+  });
+});
+
+// ================= GET WORK PERMIT DOCUMENT =================
+exports.getWorkPermitDoc = catchAsyncError(async (req, res, next) => {
+  const { applicationId } = req.params;
+
+  const application = await ContractorApplication.findById(applicationId);
+
+  if (!application || application.isDeleted) {
+    return next(new ErrorHandler("Application not found", 404));
+  }
+
+  const permit = await WorkPermit.findOne({
+    contractorApplicationId: applicationId,
+  });
+
+  if (!permit) {
+    return next(new ErrorHandler("Work permit not found", 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      applicationId: application._id,
+      jobStatus: application.jobStatus,
+      workPermitDoc: permit.workPermitDoc || null,
+    },
+  });
+});

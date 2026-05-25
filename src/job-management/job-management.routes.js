@@ -16,6 +16,8 @@ const {
   reviewInspectionFile,
   getAssignableReviewers,
   assignReviewer,
+  getNOC,
+  getWorkPermitDoc,
 } = require("./job-management.controller");
 const { uploadFile } = require("../plot/plot.controller");
 const { upload } = require("../../utils/s3");
@@ -36,9 +38,11 @@ route.patch("/application/:applicationId/review", reviewApplication);
 route.get("/drawing/:applicationId", getDrawingByApplicationId);
 route.post("/drawing/review", reviewDrawingFile);
 route.post("/upload/noc", uploadNOC);
+route.get("/noc/:applicationId", getNOC);
 route.get("/work-permit/:applicationId", getWorkPermitByApplicationId);
 route.post("/work-permit/review", reviewWorkPermitFile);
 route.post("/upload/work-permit", uploadWorkPermitDoc);
+route.get("/work-permit-doc/:applicationId", getWorkPermitDoc);
 route.get("/inspection-detail/:applicationId", getInspectionByApplicationId);
 route.post("/inspection-detail/review", reviewInspectionFile);
 route.get("/assignable-reviewers", getAssignableReviewers);

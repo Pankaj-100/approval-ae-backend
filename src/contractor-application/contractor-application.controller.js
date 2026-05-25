@@ -135,8 +135,25 @@ exports.getAllApplications = catchAsync(async (req, res, next) => {
       "versions.redesign.inputUnits.unitId",
       "unitId usageType totalSqm availableSqm usedSqm status",
     )
+    .populate({
+      path: "plotId",
+      select: "landlordId plotNumber",
+      populate: {
+        path: "landlordId",
+        select: "name mobile_number",
+      },
+    })
     .sort({ createdAt: -1 })
     .lean();
+
+  const formattedApplications = applications.map((application) => ({
+    ...application,
+
+    landlord: {
+      name: application.plotId?.landlordId?.name || null,
+      mobileNumber: application.plotId?.landlordId?.mobile_number || null,
+    },
+  }));
 
   res.status(200).json({
     success: true,
@@ -150,6 +167,13 @@ exports.getApplicationById = catchAsync(async (req, res, next) => {
   const application = await ContractorApplication.findOne({
     _id: id,
     isDeleted: false,
+  }).populate({
+    path: "plotId",
+    select: "landlordId plotNumber",
+    populate: {
+      path: "landlordId",
+      select: "name mobile_number",
+    },
   });
 
   if (!application) {
@@ -158,7 +182,14 @@ exports.getApplicationById = catchAsync(async (req, res, next) => {
 
   res.status(200).json({
     success: true,
-    data: application,
+    data: {
+      ...application.toObject(),
+
+      landlord: {
+        name: application.plotId?.landlordId?.name || null,
+        mobileNumber: application.plotId?.landlordId?.mobile_number || null,
+      },
+    },
   });
 });
 
