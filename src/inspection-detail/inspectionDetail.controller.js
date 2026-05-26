@@ -108,29 +108,117 @@ exports.submitInspection = catchAsync(async (req, res, next) => {
 });
 
 //Get All Latest Documents
+// exports.getAllInspection = catchAsync(async (req, res, next) => {
+//   const { contractorApplicationId } = req.query;
+
+//   const doc = await InspectionDetail.findOne({
+//     contractorApplicationId,
+//     isDeleted: false,
+//   });
+
+//   if (!doc) {
+//     return next(new ErrorHandler("No inspection documents found", 404));
+//   }
+
+//   const getLatest = (arr) => arr?.find((f) => f.isLatest) || null;
+
+//   const result = {};
+
+//   for (let key of allowedDocs) {
+//     result[key] = getLatest(doc.documents?.[key]);
+//   }
+
+//   res.status(200).json({
+//     success: true,
+//     data: result,
+//   });
+// });
+
+// ================= GET ALL INSPECTION DOCUMENTS =================
+
 exports.getAllInspection = catchAsync(async (req, res, next) => {
   const { contractorApplicationId } = req.query;
 
+  // FIND INSPECTION DOCUMENT
   const doc = await InspectionDetail.findOne({
     contractorApplicationId,
     isDeleted: false,
-  });
+  })
 
+    // POPULATE APPROVED BY USER DETAILS
+    .populate("documents.sitePhoto.approvedBy", "name email")
+
+    .populate("documents.dcdCompletionCertificate.approvedBy", "name email")
+
+    .populate("documents.certificate.approvedBy", "name email")
+
+    .populate("documents.dmCompletionCertificate.approvedBy", "name email")
+
+    .populate("documents.architecturalAsBuilt.approvedBy", "name email")
+
+    .populate("documents.mepAsBuilt.approvedBy", "name email")
+
+    .populate("documents.structuralAsBuilt.approvedBy", "name email")
+
+    .populate("documents.testCertificates.approvedBy", "name email")
+
+    .populate("documents.commonAreaDamageClearance.approvedBy", "name email")
+
+    .populate("documents.revisedAuthorityDrawings.approvedBy", "name email");
+
+  // CHECK DOCUMENT EXISTS
   if (!doc) {
     return next(new ErrorHandler("No inspection documents found", 404));
   }
 
+  // GET LATEST FILE VERSION
   const getLatest = (arr) => arr?.find((f) => f.isLatest) || null;
 
   const result = {};
 
+  // LOOP ALL DOCUMENT TYPES
   for (let key of allowedDocs) {
-    result[key] = getLatest(doc.documents?.[key]);
+    // GET LATEST DOCUMENT
+    const latestDoc = getLatest(doc.documents?.[key]);
+
+    // STORE CLEAN RESPONSE
+    result[key] = latestDoc
+      ? {
+          versionNumber: latestDoc.versionNumber,
+
+          fileUrl: latestDoc.fileUrl,
+
+          fileName: latestDoc.fileName,
+
+          uploadedAt: latestDoc.uploadedAt,
+
+          status: latestDoc.status,
+
+          approvedBy: latestDoc.approvedBy || null,
+
+          approvedAt: latestDoc.approvedAt || null,
+
+          rejectionReason: latestDoc.rejectionReason || null,
+
+          rejectionReasonDoc: latestDoc.rejectionReasonDoc || null,
+
+          appointmentDateTime: latestDoc.appointmentDateTime || null,
+
+          isLatest: latestDoc.isLatest,
+        }
+      : null;
   }
 
+  // RESPONSE
   res.status(200).json({
     success: true,
-    data: result,
+    data: {
+      // INSPECTION TYPE
+      inspectionType: doc.inspectionType,
+
+      // ALL DOCUMENTS
+      documents: result,
+    },
   });
 });
 

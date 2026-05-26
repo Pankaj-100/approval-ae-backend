@@ -74,7 +74,24 @@ exports.getAllWorkPermit = catchAsync(async (req, res, next) => {
   const doc = await WorkPermit.findOne({
     contractorApplicationId,
     isDeleted: false,
-  });
+  }) // POPULATE APPROVED BY
+    .populate("documents.dcd.approvedBy", "name email")
+
+    .populate("documents.dewaApproval.approvedBy", "name email")
+
+    .populate("documents.dmDdaDrawings.approvedBy", "name email")
+
+    .populate("documents.subcontractorUndertaking.approvedBy", "name email")
+
+    .populate("documents.carInsurance.approvedBy", "name email")
+
+    .populate("documents.workmenCompensationInsurance.approvedBy", "name email")
+
+    .populate("documents.emiratesId.approvedBy", "name email")
+
+    .populate("documents.commonAreaProtection.approvedBy", "name email")
+
+    .populate("documents.securityCheque.approvedBy", "name email");
 
   if (!doc) {
     return next(new ErrorHandler("No documents found", 404));

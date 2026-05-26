@@ -760,7 +760,19 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
     const seq = await getNextSequence("application", session);
     const referenceNumber = `APP${String(seq).padStart(9, "0")}`;
 
-    const displayUnit = generateName(redesignType, units, finalArea);
+    // const displayUnit = generateName(redesignType, units, finalArea);
+
+    let displayUnit = "";
+
+    if (
+      ["SPLIT", "MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)
+    ) {
+      displayUnit = resultUnits.map((r) => r.name).join(", ");
+    } else if (redesignType === "MERGE") {
+      displayUnit = `${redesignType} - ${units
+        .map((u) => u.unitId)
+        .join(", ")} (${finalArea} sqm)`;
+    }
 
     const [doc] = await ContractorApplication.create(
       [

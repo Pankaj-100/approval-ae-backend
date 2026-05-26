@@ -124,7 +124,15 @@ exports.getAllDrawings = catchAsync(async (req, res, next) => {
   const doc = await DrawingSubmission.findOne({
     contractorApplicationId,
     isDeleted: false,
-  });
+  })
+    .populate("architectural.autoCad.reviewer", "name email")
+    .populate("architectural.dwf.reviewer", "name email")
+
+    .populate("mep.autoCad.reviewer", "name email")
+    .populate("mep.dwf.reviewer", "name email")
+
+    .populate("structural.autoCad.reviewer", "name email")
+    .populate("structural.dwf.reviewer", "name email");
 
   if (!doc) {
     return next(new ErrorHandler("No drawings found", 404));

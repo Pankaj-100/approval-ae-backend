@@ -16,6 +16,9 @@ const {
   deleteUnit,
   getUnitDetailsWithApplication,
   getProjectDetails,
+  getPlotDocuments,
+  getFloorDocuments,
+  getApplicationDocuments,
 } = require("./plot.controller");
 const { upload } = require("../../utils/s3");
 const { auth } = require("../../middleware/auth");
@@ -41,5 +44,8 @@ route.post("/add-unit/:buildingId/:floorId", addUnit);
 route.delete("/delete-unit/:unitId", deleteUnit);
 route.get("/unit-details/:unitId", getUnitDetailsWithApplication);
 route.get("/project-details/:buildingId", getProjectDetails);
+route.get("/building-documents/:plotId", getPlotDocuments);
+route.get("/floor-documents/:floorId", getFloorDocuments);
+route.get("/rental-documents/:applicationId", getApplicationDocuments);
 
 module.exports = route;

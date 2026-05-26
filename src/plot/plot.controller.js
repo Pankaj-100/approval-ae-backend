@@ -820,3 +820,126 @@ exports.getProjectDetails = catchAsync(async (req, res, next) => {
     },
   });
 });
+
+// ================= GET PLOT DOCUMENTS =================
+
+exports.getPlotDocuments = catchAsync(async (req, res, next) => {
+  const { plotId } = req.params;
+
+  // CHECK PLOT
+  const plot = await PlotDetails.findOne({
+    _id: plotId,
+    isDeleted: false,
+  }).lean();
+
+  // PLOT NOT FOUND
+  if (!plot) {
+    return next(new ErrorHandler("Plot not found", 404));
+  }
+
+  // RESPONSE
+  res.status(200).json({
+    success: true,
+    message: "Plot documents fetched successfully",
+    data: {
+      plotId: plot._id,
+      plotNumber: plot.plotNumber,
+      documents: plot.documents,
+    },
+  });
+});
+
+// ================= GET FLOOR DOCUMENTS WITH APPROVED DOCUMENTS =================
+
+exports.getFloorDocuments = catchAsync(async (req, res, next) => {
+  const { floorId } = req.params;
+
+  // CHECK FLOOR
+  const floor = await FloorDetails.findOne({
+    _id: floorId,
+    isDeleted: false,
+  }).lean();
+
+  // FLOOR NOT FOUND
+  if (!floor) {
+    return next(new ErrorHandler("Floor not found", 404));
+  }
+
+  // GET APPROVED DOCUMENTS
+  const approvedDocuments = await ApprovedDocument.findOne({
+    floorId: floorId,
+    isDeleted: false,
+  }).lean();
+
+  // RESPONSE
+  res.status(200).json({
+    success: true,
+    message: "Floor documents fetched successfully",
+    data: {
+      floorId: floor._id,
+      floorName: floor.floorName,
+
+      floorDocuments: {
+        architecturalDrawing: floor.architecturalDrawing,
+        structuralDrawing: floor.structuralDrawing,
+        mepDrawing: floor.mepDrawing,
+      },
+
+      approvedDocuments: approvedDocuments
+        ? {
+            architecturalDrawing: approvedDocuments.architecturalDrawing,
+
+            structuralDrawing: approvedDocuments.structuralDrawing,
+
+            mepDrawing: approvedDocuments.mepDrawing,
+          }
+        : null,
+    },
+  });
+});
+
+// ================= GET APPLICATION DOCUMENTS =================
+
+exports.getApplicationDocuments = catchAsync(async (req, res, next) => {
+  const { applicationId } = req.params;
+
+  // CHECK APPLICATION
+  const application = await ContractorApplication.findOne({
+    _id: applicationId,
+    isDeleted: false,
+  }).lean();
+
+  // APPLICATION NOT FOUND
+  if (!application) {
+    return next(new ErrorHandler("Application not found", 404));
+  }
+
+  // GET CURRENT VERSION
+  const currentVersion = application.versions.find(
+    (v) => v.versionNumber === application.currentVersion,
+  );
+
+  // VERSION NOT FOUND
+  if (!currentVersion) {
+    return next(new ErrorHandler("Version not found", 404));
+  }
+
+  // RESPONSE
+  res.status(200).json({
+    success: true,
+    message: "Application documents fetched successfully",
+    data: {
+      applicationId: application._id,
+      referenceNumber: application.referenceNumber,
+      currentVersion: application.currentVersion,
+
+      documents: {
+        ejariDocument: currentVersion.documents?.ejariDocument || [],
+
+        appointmentLetter: currentVersion.documents?.appointmentLetter || [],
+
+        fitOutDrawings: currentVersion.documents?.fitOutDrawings || [],
+      },
+    },
+  });
+});
