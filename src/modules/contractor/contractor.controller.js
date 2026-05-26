@@ -7,7 +7,10 @@ const ErrorHandler = require("../../../utils/errorHandler");
 const catchAsync = require("../../../utils/catchAsyncError");
 const sendEmail = require("../../../utils/sendEmail");
 const { fetchUserPermissions } = require("../../../utils/rbacHelper");
-const { generateAccessToken, generateRefreshToken } = require("../../../utils/token");
+const {
+  generateAccessToken,
+  generateRefreshToken,
+} = require("../../../utils/token");
 const { s3Uploadv2 } = require("../../../utils/s3");
 const awsUrl = "https://creative-story.s3.us-east-1.amazonaws.com";
 
@@ -30,10 +33,10 @@ exports.uploadDocumentFile = catchAsync(async (req, res, next) => {
 
   return res.status(200).json({
     success: true,
-    data: { 
+    data: {
       docUrl,
       file_name: req.file.originalname,
-      key: uploadResult.Key
+      key: uploadResult.Key,
     },
     message: "File uploaded successfully",
   });
@@ -54,9 +57,43 @@ exports.register = catchAsync(async (req, res, next) => {
     documents,
   } = req.body;
 
+  if (
+    !name ||
+    !email ||
+    !mobile_number ||
+    !password ||
+    !confirm_password ||
+    !company_name ||
+    !trade_license_number ||
+    !documents
+  ) {
+    return next(
+      new ErrorHandler("All fields including documents are required", 400),
+    );
+  }
 
-  if (!name || !email || !mobile_number || !password || !confirm_password || !company_name || !trade_license_number || !documents) {
-    return next(new ErrorHandler("All fields including documents are required", 400));
+  if (email !== email.trim()) {
+    return next(new ErrorHandler("EmailId should not contain spaces", 400));
+  }
+
+  if (email !== email.toLowerCase()) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  if (trade_license_number.includes(" ")) {
+    return next(
+      new ErrorHandler("Trade license number should not contain spaces", 400),
+    );
+  }
+
+  if (password.includes(" ")) {
+    return next(new ErrorHandler("Password should not contain spaces", 400));
   }
 
   if (password !== confirm_password) {
@@ -68,34 +105,49 @@ exports.register = catchAsync(async (req, res, next) => {
   if (!role) return next(new ErrorHandler("Role not found", 404));
 
   // Check if user with this email AND role already exists
-  const existing = await User.findOne({ 
-    email, 
+  const existing = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
-  
+
   if (existing) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} already exists`, 409));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} already exists`, 409),
+    );
   }
 
   // Validate documents array
   const validTypes = ["trade_license", "dm_prequalification"];
-  const hasTradeLicense = documents.some(d => d.document_type === "trade_license");
-  const hasDMPrequalification = documents.some(d => d.document_type === "dm_prequalification");
+  const hasTradeLicense = documents.some(
+    (d) => d.document_type === "trade_license",
+  );
+  const hasDMPrequalification = documents.some(
+    (d) => d.document_type === "dm_prequalification",
+  );
 
   if (!hasTradeLicense || !hasDMPrequalification) {
-    return next(new ErrorHandler("Both Trade License and DM Prequalification documents are required", 400));
+    return next(
+      new ErrorHandler(
+        "Both Trade License and DM Prequalification documents are required",
+        400,
+      ),
+    );
   }
 
   for (const doc of documents) {
-    if (!doc.file_url || !doc.document_type || !validTypes.includes(doc.document_type)) {
+    if (
+      !doc.file_url ||
+      !doc.document_type ||
+      !validTypes.includes(doc.document_type)
+    ) {
       return next(new ErrorHandler("Invalid documents array format", 400));
     }
     if (!doc.file_name) doc.file_name = "document";
   }
 
   // const otp = Math.floor(1000 + Math.random() * 9000).toString();
-  
+
   const otp = "1234";
 
   const user = await User.create({
@@ -115,11 +167,11 @@ exports.register = catchAsync(async (req, res, next) => {
   await user.save();
 
   await sendEmail(
-    user.name, 
-    user.email, 
+    user.name,
+    user.email,
     `<h3>Welcome to ${ROLE_NAME} Portal!</h3>
      <p>Your email verification OTP is: <b>${otp}</b></p>
-     <p>This OTP will expire in 10 minutes.</p>`
+     <p>This OTP will expire in 10 minutes.</p>`,
   );
 
   res.status(201).json({
@@ -148,14 +200,16 @@ exports.verifyEmail = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Role not found", 404));
   }
 
-  const user = await User.findOne({ 
-    email, 
+  const user = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404),
+    );
   }
 
   if (user.isVerified) {
@@ -172,11 +226,11 @@ exports.verifyEmail = catchAsync(async (req, res, next) => {
 
   await user.save();
 
-  res.json({ 
+  res.json({
     success: true,
     message: `${ROLE_NAME} email verified successfully`,
     isVerified: true,
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -195,14 +249,16 @@ exports.resendVerificationOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Role not found", 404));
   }
 
-  const user = await User.findOne({ 
-    email, 
+  const user = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404),
+    );
   }
 
   if (user.isVerified) {
@@ -210,26 +266,26 @@ exports.resendVerificationOtp = catchAsync(async (req, res, next) => {
   }
 
   // const otp = Math.floor(1000 + Math.random() * 9000).toString();
-   const otp = "1234";
+  const otp = "1234";
   user.otp = otp;
   user.otpExpire = Date.now() + 10 * 60 * 1000;
 
   await user.save();
 
   await sendEmail(
-    user.name, 
-    user.email, 
+    user.name,
+    user.email,
     `<h3>${ROLE_NAME} Account - Email Verification OTP (Resent)</h3>
      <p>Your new OTP is: <b>${otp}</b></p>
      <p>This OTP will expire in 10 minutes.</p>
-     <p>If you didn't request this, please ignore this email.</p>`
+     <p>If you didn't request this, please ignore this email.</p>`,
   );
 
-  res.json({ 
+  res.json({
     success: true,
     message: `Verification OTP resent successfully to ${email}`,
     verification_required: true,
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -238,6 +294,20 @@ exports.resendVerificationOtp = catchAsync(async (req, res, next) => {
 ===================================== */
 exports.login = catchAsync(async (req, res, next) => {
   const { email, password } = req.body;
+
+  if (email !== email.trim()) {
+    return next(new ErrorHandler("EmailId should not contain spaces", 400));
+  }
+
+  if (email !== email.toLowerCase()) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
 
   const role = await Role.findOne({ name: ROLE_NAME });
 
@@ -254,23 +324,23 @@ exports.login = catchAsync(async (req, res, next) => {
 
   if (!user.isVerified) {
     // const otp = Math.floor(1000 + Math.random() * 9000).toString();
-       const otp ="1234";
+    const otp = "1234";
     user.otp = otp;
     user.otpExpire = Date.now() + 10 * 60 * 1000;
     await user.save();
     await sendEmail(
-      user.name, 
-      user.email, 
+      user.name,
+      user.email,
       `<h3>${ROLE_NAME} Account - Email Verification</h3>
        <p>Your OTP is: <b>${otp}</b></p>
-       <p>This OTP will expire in 10 minutes.</p>`
+       <p>This OTP will expire in 10 minutes.</p>`,
     );
 
     return res.status(200).json({
       success: false,
       verification_required: true,
       message: "Email not verified. OTP sent.",
-      role: ROLE_NAME
+      role: ROLE_NAME,
     });
   }
 
@@ -312,19 +382,35 @@ exports.sendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Email is required", 400));
   }
 
+  if (email !== email.trim()) {
+    return next(new ErrorHandler("EmailId should not contain spaces", 400));
+  }
+
+  if (email !== email.toLowerCase()) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
   const role = await Role.findOne({ name: ROLE_NAME });
   if (!role) {
     return next(new ErrorHandler("Role not found", 404));
   }
 
-  const user = await User.findOne({ 
-    email, 
+  const user = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404),
+    );
   }
 
   // const otp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -334,18 +420,18 @@ exports.sendForgotPasswordOtp = catchAsync(async (req, res, next) => {
 
   await user.save();
   await sendEmail(
-    user.name, 
-    user.email, 
+    user.name,
+    user.email,
     `<h3>${ROLE_NAME} Account - Password Reset OTP</h3>
      <p>Your OTP for password reset is: <b>${otp}</b></p>
      <p>This OTP will expire in 10 minutes.</p>
-     <p>If you didn't request this, please ignore this email.</p>`
+     <p>If you didn't request this, please ignore this email.</p>`,
   );
 
-  res.json({ 
+  res.json({
     success: true,
     message: `Password reset OTP sent to ${email} for ${ROLE_NAME} account`,
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -359,19 +445,35 @@ exports.verifyForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Email and OTP are required", 400));
   }
 
+  if (email !== email.trim()) {
+    return next(new ErrorHandler("EmailId should not contain spaces", 400));
+  }
+
+  if (email !== email.toLowerCase()) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
   const role = await Role.findOne({ name: ROLE_NAME });
   if (!role) {
     return next(new ErrorHandler("Role not found", 404));
   }
 
-  const user = await User.findOne({ 
-    email, 
+  const user = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not found`, 404),
+    );
   }
 
   if (!user.otp || user.otp !== otp || user.otpExpire < Date.now()) {
@@ -387,11 +489,11 @@ exports.verifyForgotPasswordOtp = catchAsync(async (req, res, next) => {
 
   await user.save();
 
-  res.json({ 
+  res.json({
     success: true,
     message: "OTP verified successfully",
     resetToken,
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -405,19 +507,35 @@ exports.resendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Email is required", 400));
   }
 
+  if (email !== email.trim()) {
+    return next(new ErrorHandler("EmailId should not contain spaces", 400));
+  }
+
+  if (email !== email.toLowerCase()) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
   const role = await Role.findOne({ name: ROLE_NAME });
   if (!role) {
     return next(new ErrorHandler("Role not found", 404));
   }
 
-  const user = await User.findOne({ 
-    email, 
+  const user = await User.findOne({
+    email,
     role: role._id,
-    isDeleted: false 
+    isDeleted: false,
   });
 
   if (!user) {
-    return next(new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404));
+    return next(
+      new ErrorHandler(`${ROLE_NAME} with email ${email} not registered`, 404),
+    );
   }
 
   // const otp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -427,18 +545,18 @@ exports.resendForgotPasswordOtp = catchAsync(async (req, res, next) => {
 
   await user.save();
   await sendEmail(
-    user.name, 
-    user.email, 
+    user.name,
+    user.email,
     `<h3>${ROLE_NAME} Account - Password Reset OTP (Resent)</h3>
      <p>Your new OTP for password reset is: <b>${otp}</b></p>
      <p>This OTP will expire in 10 minutes.</p>
-     <p>If you didn't request this, please ignore this email.</p>`
+     <p>If you didn't request this, please ignore this email.</p>`,
   );
 
-  res.json({ 
+  res.json({
     success: true,
     message: `Password reset OTP resent successfully to ${email} for ${ROLE_NAME} account`,
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -449,7 +567,9 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
   const { resetToken, newPassword } = req.body;
 
   if (!resetToken || !newPassword) {
-    return next(new ErrorHandler("Reset token and new password are required", 400));
+    return next(
+      new ErrorHandler("Reset token and new password are required", 400),
+    );
   }
 
   const role = await Role.findOne({ name: ROLE_NAME });
@@ -468,6 +588,14 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Invalid or expired reset token", 400));
   }
 
+  const isSamePassword = await bcrypt.compare(newPassword, user.password);
+
+  if (isSamePassword) {
+    return next(
+      new ErrorHandler("New password cannot be same as old password", 400),
+    );
+  }
+
   user.password = newPassword;
   user.resetPasswordToken = undefined;
   user.resetPasswordExpire = undefined;
@@ -479,13 +607,13 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
     user.email,
     `<h3>${ROLE_NAME} Account - Password Reset Successful</h3>
      <p>Your password has been reset successfully.</p>
-     <p>If you didn't perform this action, please contact support immediately.</p>`
+     <p>If you didn't perform this action, please contact support immediately.</p>`,
   );
 
-  res.json({ 
+  res.json({
     success: true,
     message: `Password reset successfully for ${ROLE_NAME} account`,
-    role: ROLE_NAME
+    role: ROLE_NAME,
   });
 });
 
@@ -515,7 +643,14 @@ exports.getProfile = catchAsync(async (req, res) => {
    UPDATE PROFILE
 ===================================== */
 exports.updateProfile = catchAsync(async (req, res) => {
-  const { name, mobile_number, company_name, trade_license_number, address, email } = req.body;
+  const {
+    name,
+    mobile_number,
+    company_name,
+    trade_license_number,
+    address,
+    email,
+  } = req.body;
 
   let emailChanged = false;
 
@@ -533,18 +668,19 @@ exports.updateProfile = catchAsync(async (req, res) => {
   if (name) req.user.name = name;
   if (mobile_number) req.user.mobile_number = mobile_number;
   if (company_name) req.user.company_name = company_name;
-  if (trade_license_number) req.user.trade_license_number = trade_license_number;
+  if (trade_license_number)
+    req.user.trade_license_number = trade_license_number;
   if (address) req.user.address = address;
 
   await req.user.save();
 
   if (emailChanged) {
     await sendEmail(
-      req.user.name, 
-      req.user.email, 
+      req.user.name,
+      req.user.email,
       `<h3>${ROLE_NAME} Account - Email Change Verification</h3>
        <p>Your OTP to verify your new email is: <b>${req.user.otp}</b></p>
-       <p>This OTP will expire in 10 minutes.</p>`
+       <p>This OTP will expire in 10 minutes.</p>`,
     );
   }
 
@@ -569,10 +705,10 @@ exports.updateProfile = catchAsync(async (req, res) => {
    GET ALL DOCUMENTS
 ===================================== */
 exports.getDocuments = catchAsync(async (req, res) => {
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     documents: req.user.documents,
-    isProfileCompleted: req.user.isProfileCompleted
+    isProfileCompleted: req.user.isProfileCompleted,
   });
 });
 
@@ -589,25 +725,32 @@ exports.saveAndSubmitDocuments = catchAsync(async (req, res, next) => {
   // Validate and process incoming documents
   for (const doc of documents) {
     if (!doc.document_type || !validTypes.includes(doc.document_type)) {
-      return next(new ErrorHandler(`Invalid document type: ${doc.document_type}. Allowed types: trade_license, dm_prequalification`, 400));
+      return next(
+        new ErrorHandler(
+          `Invalid document type: ${doc.document_type}. Allowed types: trade_license, dm_prequalification`,
+          400,
+        ),
+      );
     }
 
     if (!doc.file_url) {
-      return next(new ErrorHandler(`File URL is required for ${doc.document_type}`, 400));
+      return next(
+        new ErrorHandler(`File URL is required for ${doc.document_type}`, 400),
+      );
     }
 
     processedDocuments.push({
       document_type: doc.document_type,
       file_url: doc.file_url,
       file_name: doc.file_name || `${doc.document_type}.pdf`,
-      uploaded_at: new Date()
+      uploaded_at: new Date(),
     });
   }
 
   // Save/update documents (allow partial updates)
   for (const newDoc of processedDocuments) {
     const existingDocIndex = req.user.documents.findIndex(
-      doc => doc.document_type === newDoc.document_type
+      (doc) => doc.document_type === newDoc.document_type,
     );
 
     if (existingDocIndex >= 0) {
@@ -622,16 +765,21 @@ exports.saveAndSubmitDocuments = catchAsync(async (req, res, next) => {
   }
 
   // Check current document status
-  const hasTradeLicense = req.user.documents.some(doc => doc.document_type === "trade_license");
-  const hasDMPrequalification = req.user.documents.some(doc => doc.document_type === "dm_prequalification");
-  
+  const hasTradeLicense = req.user.documents.some(
+    (doc) => doc.document_type === "trade_license",
+  );
+  const hasDMPrequalification = req.user.documents.some(
+    (doc) => doc.document_type === "dm_prequalification",
+  );
+
   // Determine if profile can be completed (both documents exist)
   const canCompleteProfile = hasTradeLicense && hasDMPrequalification;
 
   // Prepare response message
   let message = "Documents saved successfully";
   if (!hasTradeLicense || !hasDMPrequalification) {
-    message = "Documents saved. Please upload both required documents to complete profile.";
+    message =
+      "Documents saved. Please upload both required documents to complete profile.";
   } else if (canCompleteProfile && !req.user.isProfileCompleted) {
     message = "All required documents uploaded. Profile completed!";
   }
@@ -643,16 +791,16 @@ exports.saveAndSubmitDocuments = catchAsync(async (req, res, next) => {
 
   await req.user.save();
 
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message,
     documents: req.user.documents,
     isProfileCompleted: req.user.isProfileCompleted,
     hasRequiredDocuments: hasTradeLicense && hasDMPrequalification,
     missingDocuments: {
       trade_license: !hasTradeLicense,
-      dm_prequalification: !hasDMPrequalification
-    }
+      dm_prequalification: !hasDMPrequalification,
+    },
   });
 });
 /* =====================================
@@ -662,7 +810,7 @@ exports.deleteDocument = catchAsync(async (req, res, next) => {
   const { documentId } = req.params;
 
   const documentIndex = req.user.documents.findIndex(
-    doc => doc._id.toString() === documentId
+    (doc) => doc._id.toString() === documentId,
   );
 
   if (documentIndex === -1) {
@@ -671,21 +819,23 @@ exports.deleteDocument = catchAsync(async (req, res, next) => {
 
   req.user.documents.splice(documentIndex, 1);
 
-  const hasTradeLicense = req.user.documents.some(doc => doc.document_type === "trade_license");
-  const hasDMPrequalification = req.user.documents.some(doc => doc.document_type === "dm_prequalification");
+  const hasTradeLicense = req.user.documents.some(
+    (doc) => doc.document_type === "trade_license",
+  );
+  const hasDMPrequalification = req.user.documents.some(
+    (doc) => doc.document_type === "dm_prequalification",
+  );
   req.user.isProfileCompleted = hasTradeLicense && hasDMPrequalification;
 
   await req.user.save();
 
-  res.json({ 
+  res.json({
     success: true,
-    message: "Document deleted successfully", 
+    message: "Document deleted successfully",
     documents: req.user.documents,
-    isProfileCompleted: req.user.isProfileCompleted 
+    isProfileCompleted: req.user.isProfileCompleted,
   });
 });
-
-
 
 /* =====================================
    CHANGE PASSWORD
@@ -697,15 +847,15 @@ exports.changePassword = catchAsync(async (req, res, next) => {
   if (!isMatch) return next(new ErrorHandler("Incorrect password", 400));
   user.password = new_password;
   await user.save();
-  
+
   await sendEmail(
     user.name,
     user.email,
     `<h3>${ROLE_NAME} Account - Password Changed</h3>
      <p>Your password has been changed successfully.</p>
-     <p>If you didn't perform this action, please contact support immediately.</p>`
+     <p>If you didn't perform this action, please contact support immediately.</p>`,
   );
-  
+
   res.json({ success: true, message: "Password changed successfully" });
 });
 
@@ -740,8 +890,8 @@ exports.getProfileImage = catchAsync(async (req, res) => {
   res.json({
     success: true,
     data: {
-      profile_image_url: req.user.profile_image_url || null
-    }
+      profile_image_url: req.user.profile_image_url || null,
+    },
   });
 });
 
@@ -766,8 +916,8 @@ exports.updateProfileImage = catchAsync(async (req, res, next) => {
     success: true,
     message: "Profile image updated successfully",
     data: {
-      profile_image_url: imageUrl
-    }
+      profile_image_url: imageUrl,
+    },
   });
 });
 
@@ -787,7 +937,6 @@ exports.removeProfileImage = catchAsync(async (req, res, next) => {
 
   res.json({
     success: true,
-    message: "Profile image removed successfully"
+    message: "Profile image removed successfully",
   });
 });
-

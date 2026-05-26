@@ -36,6 +36,24 @@ exports.register = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("All fields are required", 400));
   }
 
+  if (email !== email.trim()) {
+    return next(new ErrorHandler("EmailId should not contain spaces", 400));
+  }
+
+  if (email !== email.toLowerCase()) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  if (password.includes(" ")) {
+    return next(new ErrorHandler("Password should not contain spaces", 400));
+  }
+
   if (password !== confirm_password) {
     return next(new ErrorHandler("Passwords do not match", 400));
   }
@@ -209,6 +227,20 @@ exports.resendVerificationOtp = catchAsync(async (req, res, next) => {
 exports.login = catchAsync(async (req, res, next) => {
   const { email, password } = req.body;
 
+  if (email !== email.trim()) {
+    return next(new ErrorHandler("EmailId should not contain spaces", 400));
+  }
+
+  if (email !== email.toLowerCase()) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
   const role = await Role.findOne({ name: ROLE_NAME });
 
   const user = await User.findOne({
@@ -288,6 +320,20 @@ exports.sendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Email is required", 400));
   }
 
+  if (email !== email.trim()) {
+    return next(new ErrorHandler("EmailId should not contain spaces", 400));
+  }
+
+  if (email !== email.toLowerCase()) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
   const role = await Role.findOne({ name: ROLE_NAME });
   if (!role) {
     return next(new ErrorHandler("Role not found", 404));
@@ -339,6 +385,20 @@ exports.resendForgotPasswordOtp = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Email is required", 400));
   }
 
+  if (email !== email.trim()) {
+    return next(new ErrorHandler("EmailId should not contain spaces", 400));
+  }
+
+  if (email !== email.toLowerCase()) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
   const role = await Role.findOne({ name: ROLE_NAME });
   if (!role) {
     return next(new ErrorHandler("Role not found", 404));
@@ -387,6 +447,20 @@ exports.verifyForgotPasswordOtp = catchAsync(async (req, res, next) => {
 
   if (!email || !otp) {
     return next(new ErrorHandler("Email and OTP are required", 400));
+  }
+
+  if (email !== email.trim()) {
+    return next(new ErrorHandler("EmailId should not contain spaces", 400));
+  }
+
+  if (email !== email.toLowerCase()) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    return next(new ErrorHandler("Enter valid emailId", 400));
   }
 
   const role = await Role.findOne({ name: ROLE_NAME });
@@ -453,6 +527,14 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
 
   if (!user) {
     return next(new ErrorHandler("Invalid or expired token", 400));
+  }
+
+  const isSamePassword = await bcrypt.compare(newPassword, user.password);
+
+  if (isSamePassword) {
+    return next(
+      new ErrorHandler("New password cannot be same as old password", 400),
+    );
   }
 
   user.password = newPassword;
