@@ -143,6 +143,12 @@ const contractorApplicationSchema = new mongoose.Schema(
     //   default: "PENDING",
     // },
 
+    // approvalStatus: {
+    //   type: String,
+    //   enum: ["PENDING", "APPROVED", "REJECTED"],
+    //   default: "PENDING",
+    // },
+
     plotNumber: String,
     buildingName: String,
     floorNumber: String,
@@ -162,7 +168,8 @@ const contractorApplicationSchema = new mongoose.Schema(
     versions: [versionSchema],
 
     nocDoc: {
-      type: String,
+      // type: String,
+      fileUrl: String,
       uploadedAt: Date,
       uploadedBy: {
         type: mongoose.Schema.Types.ObjectId,

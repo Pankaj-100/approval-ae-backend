@@ -680,7 +680,7 @@ exports.uploadNOC = catchAsyncError(async (req, res, next) => {
 
   // ================= SAVE NOC =================
 
-  application.nocDocument = {
+  application.nocDoc = {
     fileUrl: nocDocumentUrl,
     uploadedAt: new Date(),
     uploadedBy: req.user?._id || null,
@@ -698,7 +698,7 @@ exports.uploadNOC = catchAsyncError(async (req, res, next) => {
     data: {
       applicationId: application._id,
       jobStatus: application.jobStatus,
-      nocDocument: application.nocDocument,
+      nocDocument: application.nocDoc,
     },
   });
 });
@@ -1270,7 +1270,7 @@ exports.getNOC = catchAsyncError(async (req, res, next) => {
     data: {
       applicationId: application._id,
       jobStatus: application.jobStatus,
-      nocDocument: application.nocDocument || null,
+      nocDocument: application.nocDoc || null,
     },
   });
 });
