@@ -10,6 +10,9 @@ const ErrorHandler = require("../../utils/errorHandler");
 const catchAsync = require("../../utils/catchAsyncError");
 const ContractorApplication = require("../contractor-application/contractor-application.model");
 const Unit = require("../floor-unit/floor-unit.model");
+const DrawingSubmission = require("../drawing-submission/drawing-submission.model");
+const InspectionDetail = require("../inspection-detail/inspectionDetail.model");
+const WorkPermit = require("../work-permit/workPermit.model");
 
 const awsUrl = process.env.AWS_BASE_URL;
 
@@ -940,6 +943,191 @@ exports.getApplicationDocuments = catchAsync(async (req, res, next) => {
 
         fitOutDrawings: currentVersion.documents?.fitOutDrawings || [],
       },
+    },
+  });
+});
+
+// ================= GET ALL INVOLVED USERS OF UNIT =================
+
+exports.getUnitUsers = catchAsync(async (req, res, next) => {
+  const { unitId } = req.params;
+
+  // CHECK UNIT
+  const unit = await Unit.findOne({
+    _id: unitId,
+    isDeleted: false,
+  });
+
+  // UNIT NOT FOUND
+  if (!unit) {
+    return next(new ErrorHandler("Unit not found", 404));
+  }
+
+  // FIND APPLICATION
+  const application = await ContractorApplication.findOne({
+    isDeleted: false,
+
+    $or: [
+      { unitId: unitId },
+      { "versions.redesign.inputUnits.unitId": unitId },
+    ],
+  }).populate("contractorId", "name email");
+
+  // APPLICATION NOT FOUND
+  if (!application) {
+    return next(new ErrorHandler("Application not found", 404));
+  }
+
+  // GET DRAWING SUBMISSION
+  const drawing = await DrawingSubmission.findOne({
+    contractorApplicationId: application._id,
+    isDeleted: false,
+  })
+    .populate("architectural.autoCad.reviewer", "name email")
+    .populate("architectural.dwf.reviewer", "name email")
+
+    .populate("mep.autoCad.reviewer", "name email")
+    .populate("mep.dwf.reviewer", "name email")
+
+    .populate("structural.autoCad.reviewer", "name email")
+    .populate("structural.dwf.reviewer", "name email");
+
+  // GET WORK PERMIT
+  const workPermit = await WorkPermit.findOne({
+    contractorApplicationId: application._id,
+    isDeleted: false,
+  })
+
+    .populate("documents.dcd.approvedBy", "name email")
+
+    .populate("documents.dewaApproval.approvedBy", "name email")
+
+    .populate("documents.dmDdaDrawings.approvedBy", "name email")
+
+    .populate("documents.subcontractorUndertaking.approvedBy", "name email")
+
+    .populate("documents.carInsurance.approvedBy", "name email")
+
+    .populate("documents.workmenCompensationInsurance.approvedBy", "name email")
+
+    .populate("documents.emiratesId.approvedBy", "name email")
+
+    .populate("documents.commonAreaProtection.approvedBy", "name email")
+
+    .populate("documents.securityCheque.approvedBy", "name email");
+
+  // GET INSPECTION
+  const inspection = await InspectionDetail.findOne({
+    contractorApplicationId: application._id,
+    isDeleted: false,
+  })
+
+    .populate("documents.sitePhoto.approvedBy", "name email")
+
+    .populate("documents.dcdCompletionCertificate.approvedBy", "name email")
+
+    .populate("documents.certificate.approvedBy", "name email")
+
+    .populate("documents.dmCompletionCertificate.approvedBy", "name email")
+
+    .populate("documents.architecturalAsBuilt.approvedBy", "name email")
+
+    .populate("documents.mepAsBuilt.approvedBy", "name email")
+
+    .populate("documents.structuralAsBuilt.approvedBy", "name email")
+
+    .populate("documents.testCertificates.approvedBy", "name email")
+
+    .populate("documents.commonAreaDamageClearance.approvedBy", "name email")
+
+    .populate("documents.revisedAuthorityDrawings.approvedBy", "name email");
+
+  const users = [];
+
+  // ADD CONTRACTOR
+  if (application.contractorId) {
+    users.push({
+      role: "CONTRACTOR",
+      user: application.contractorId,
+    });
+  }
+
+  // ================= DRAWING REVIEWERS =================
+
+  const drawingTypes = ["architectural", "mep", "structural"];
+
+  for (let type of drawingTypes) {
+    for (let file of drawing?.[type]?.autoCad || []) {
+      if (file.reviewer) {
+        users.push({
+          role: "DRAWING_REVIEWER",
+          department: type.toUpperCase(),
+          user: file.reviewer,
+        });
+      }
+    }
+
+    for (let file of drawing?.[type]?.dwf || []) {
+      if (file.reviewer) {
+        users.push({
+          role: "DRAWING_REVIEWER",
+          department: type.toUpperCase(),
+          user: file.reviewer,
+        });
+      }
+    }
+  }
+
+  // ================= WORK PERMIT APPROVERS =================
+
+  const workPermitDocs = Object.values(workPermit?.documents || {});
+
+  for (let files of workPermitDocs) {
+    for (let file of files || []) {
+      if (file.approvedBy) {
+        users.push({
+          role: "WORK_PERMIT_APPROVER",
+          user: file.approvedBy,
+        });
+      }
+    }
+  }
+
+  // ================= INSPECTION APPROVERS =================
+
+  const inspectionDocs = Object.values(inspection?.documents || {});
+
+  for (let files of inspectionDocs) {
+    for (let file of files || []) {
+      if (file.approvedBy) {
+        users.push({
+          role: "INSPECTION_APPROVER",
+          user: file.approvedBy,
+        });
+      }
+    }
+  }
+
+  // REMOVE DUPLICATE USERS
+  const uniqueUsers = users.filter(
+    (value, index, self) =>
+      index ===
+      self.findIndex(
+        (t) => t.user?._id.toString() === value.user?._id.toString(),
+      ),
+  );
+
+  // RESPONSE
+  res.status(200).json({
+    success: true,
+
+    data: {
+      unitId: unit._id,
+      unitNumber: unit.unitId,
+
+      totalUsersInvolved: uniqueUsers.length,
+
+      users: uniqueUsers,
     },
   });
 });
