@@ -553,6 +553,296 @@ exports.submitApplicationSingle = catchAsync(async (req, res, next) => {
   });
 });
 
+// exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
+//   let applicationDoc;
+//   let createdUnits = [];
+
+//   await mongoose.connection.transaction(async (session) => {
+//     let {
+//       unitType,
+//       plotId,
+//       floorId,
+//       buildingId,
+//       inputUnits,
+//       redesignType,
+//       resultUnits: inputResultUnits = [],
+//       modifyArea = 0,
+//       usageType,
+//       tenantName,
+//       tenantMobile,
+//       tenantEmail,
+//       ejariDocument,
+//       appointmentLetter,
+//       fitOutDrawings,
+//       hasMezzanine,
+//       fitOutAffectedArea,
+//       mezzanineAreaToAdd,
+//       fitOutAffectedAreaAfterMezzanine,
+//       totalUnitAreaAfterMezzanineSqm,
+//     } = req.body;
+
+//     let resultUnits = [];
+
+//     // ================= VALIDATION =================
+//     if (unitType !== "Redesign Unit") {
+//       throw new ErrorHandler("Invalid unitType", 400);
+//     }
+
+//     if (!inputUnits?.length) {
+//       throw new ErrorHandler("inputUnits required", 400);
+//     }
+
+//     const [plot, floor, building] = await Promise.all([
+//       PlotDetails.findById(plotId).session(session),
+//       FloorDetails.findById(floorId).session(session),
+//       BuildingDetails.findById(buildingId).session(session),
+//     ]);
+
+//     if (!plot || !floor || !building) {
+//       throw new ErrorHandler("Invalid selection", 400);
+//     }
+
+//     const contractorId = req.user?._id || null;
+
+//     // ================= FETCH UNITS =================
+//     const unitIds = inputUnits.map((u) => u.unitId);
+
+//     const units = await Unit.find({
+//       _id: { $in: unitIds },
+//       isDeleted: false,
+//       status: "AVAILABLE",
+//     }).session(session);
+
+//     if (units.length !== inputUnits.length) {
+//       throw new ErrorHandler("Some units not found", 404);
+//     }
+
+//     // ================= AREA =================
+//     let baseArea = 0;
+
+//     for (let input of inputUnits) {
+//       const unit = units.find(
+//         (u) => u._id.toString() === input.unitId.toString(),
+//       );
+
+//       if (!unit) throw new ErrorHandler("Unit not found", 404);
+
+//       if (input.area > unit.availableSqm) {
+//         throw new ErrorHandler(`Not enough area in ${unit.unitId}`, 400);
+//       }
+
+//       baseArea += input.area;
+//     }
+
+//     let finalArea = baseArea + modifyArea;
+
+//     if (hasMezzanine) {
+//       if (!totalUnitAreaAfterMezzanineSqm) {
+//         throw new ErrorHandler("Mezzanine area required", 400);
+//       }
+//       finalArea = totalUnitAreaAfterMezzanineSqm;
+//     }
+
+//     if (finalArea <= 0) {
+//       throw new ErrorHandler("Invalid final area", 400);
+//     }
+
+//     // ================= VALIDATE RESULT =================
+//     if (
+//       ["SPLIT", "MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)
+//     ) {
+//       const total = inputResultUnits.reduce((sum, r) => sum + r.area, 0);
+
+//       if (total !== finalArea) {
+//         throw new ErrorHandler("Result area mismatch", 400);
+//       }
+//     }
+
+//     // ================= NAME GENERATOR =================
+//     const generateName = (type, units, area) => {
+//       const names = units.map((u) => u.unitId).join(", ");
+//       return `${type} - ${names} (${area} sqm)`;
+//     };
+
+//     // ================= CASE 1: MERGE =================
+//     if (redesignType === "MERGE") {
+//       await Unit.updateMany(
+//         { _id: { $in: unitIds } },
+//         { status: "CONSUMED" },
+//         { session },
+//       );
+
+//       const finalName = `${generateName("MERGE", units, finalArea)}-${Date.now()}`;
+
+//       const mergedUnit = await Unit.create(
+//         [
+//           {
+//             floorId,
+//             buildingId,
+//             unitId: finalName,
+//             usageType,
+//             fitOutWork: "YES",
+//             totalSqm: finalArea,
+//             availableSqm: finalArea,
+//             usedSqm: 0,
+//             parentUnits: unitIds,
+//           },
+//         ],
+//         { session },
+//       );
+
+//       createdUnits.push(mergedUnit[0]);
+//       resultUnits = [{ name: finalName, area: finalArea }];
+//     }
+
+//     // ================= CASE 2: SPLIT =================
+//     if (redesignType === "SPLIT") {
+//       const unit = units[0];
+
+//       await Unit.findByIdAndUpdate(
+//         unit._id,
+//         { status: "CONSUMED" },
+//         { session },
+//       );
+
+//       for (let r of inputResultUnits) {
+//         const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
+
+//         const newUnit = await Unit.create(
+//           [
+//             {
+//               floorId,
+//               buildingId,
+//               unitId: finalName,
+//               usageType,
+//               fitOutWork: unit.fitOutWork,
+//               totalSqm: r.area,
+//               availableSqm: r.area,
+//               usedSqm: 0,
+//               parentUnits: [unit._id],
+//             },
+//           ],
+//           { session },
+//         );
+
+//         createdUnits.push(newUnit[0]);
+//         resultUnits.push({ name: finalName, area: r.area });
+//       }
+//     }
+
+//     // ================= CASE 3 & 4 =================
+//     if (["MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)) {
+//       await Unit.updateMany(
+//         { _id: { $in: unitIds } },
+//         { status: "CONSUMED" },
+//         { session },
+//       );
+
+//       for (let r of inputResultUnits) {
+//         const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
+
+//         const newUnit = await Unit.create(
+//           [
+//             {
+//               floorId,
+//               buildingId,
+//               unitId: finalName,
+//               usageType,
+//               fitOutWork: "YES",
+//               totalSqm: r.area,
+//               availableSqm: r.area,
+//               usedSqm: 0,
+//               parentUnits: unitIds,
+//             },
+//           ],
+//           { session },
+//         );
+
+//         createdUnits.push(newUnit[0]);
+//         resultUnits.push({ name: finalName, area: r.area });
+//       }
+//     }
+
+//     // ================= DOCUMENT =================
+//     const buildDocs = (file) =>
+//       file ? [{ versionNumber: 1, fileUrl: file }] : [];
+
+//     const seq = await getNextSequence("application", session);
+//     const referenceNumber = `APP${String(seq).padStart(9, "0")}`;
+
+//     // const displayUnit = generateName(redesignType, units, finalArea);
+
+//     let displayUnit = "";
+
+//     if (
+//       ["SPLIT", "MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)
+//     ) {
+//       displayUnit = resultUnits.map((r) => r.name).join(", ");
+//     } else if (redesignType === "MERGE") {
+//       displayUnit = `${redesignType} - ${units
+//         .map((u) => u.unitId)
+//         .join(", ")} (${finalArea} sqm)`;
+//     }
+
+//     const [doc] = await ContractorApplication.create(
+//       [
+//         {
+//           referenceNumber,
+//           plotId,
+//           floorId,
+//           buildingId,
+//           contractorId,
+//           plotNumber: plot.plotNumber,
+//           buildingName: building.buildingName,
+//           floorNumber: floor.floorName,
+//           unitType: "Redesign Unit",
+//           displayUnit,
+//           versions: [
+//             {
+//               versionNumber: 1,
+//               usageType,
+//               totalUnitAreaSqm: finalArea,
+//               hasMezzanine: !!hasMezzanine,
+//               fitOutAffectedArea: fitOutAffectedArea || 0,
+//               mezzanineAreaToAdd: mezzanineAreaToAdd || 0,
+//               fitOutAffectedAreaAfterMezzanine:
+//                 fitOutAffectedAreaAfterMezzanine || 0,
+//               totalUnitAreaAfterMezzanineSqm: hasMezzanine
+//                 ? totalUnitAreaAfterMezzanineSqm
+//                 : null,
+//               tenantName,
+//               tenantMobile,
+//               tenantEmail,
+//               redesign: {
+//                 redesignType,
+//                 inputUnits,
+//                 resultUnits,
+//               },
+//               documents: {
+//                 ejariDocument: buildDocs(ejariDocument),
+//                 appointmentLetter: buildDocs(appointmentLetter),
+//                 fitOutDrawings: buildDocs(fitOutDrawings),
+//               },
+//               status: "UNDER_REVIEW",
+//             },
+//           ],
+//         },
+//       ],
+//       { session },
+//     );
+
+//     applicationDoc = doc;
+//   });
+
+//   // ================= RESPONSE =================
+//   res.status(201).json({
+//     success: true,
+//     message: "Redesign applied successfully",
+//     data: applicationDoc,
+//     newUnits: createdUnits,
+//   });
+// });
+
 exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
   let applicationDoc;
   let createdUnits = [];
@@ -653,8 +943,16 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
     ) {
       const total = inputResultUnits.reduce((sum, r) => sum + r.area, 0);
 
-      if (total !== finalArea) {
-        throw new ErrorHandler("Result area mismatch", 400);
+      // if (total !== finalArea) {
+      //   throw new ErrorHandler("Result area mismatch", 400);
+      // }
+
+      // CHANGED: allow remaining area
+      if (total > finalArea) {
+        throw new ErrorHandler(
+          "Result units area cannot exceed available area",
+          400,
+        );
       }
     }
 
@@ -706,10 +1004,23 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
       );
 
       for (let r of inputResultUnits) {
-        const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
+        // const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
+
+        const finalName = r.name;
 
         const newUnit = await Unit.create(
           [
+            // {
+            //   floorId,
+            //   buildingId,
+            //   unitId: finalName,
+            //   usageType,
+            //   fitOutWork: unit.fitOutWork,
+            //   totalSqm: r.area,
+            //   availableSqm: r.area,
+            //   usedSqm: 0,
+            //   parentUnits: [unit._id],
+            // },
             {
               floorId,
               buildingId,
@@ -717,8 +1028,9 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
               usageType,
               fitOutWork: unit.fitOutWork,
               totalSqm: r.area,
-              availableSqm: r.area,
-              usedSqm: 0,
+              availableSqm: 0,
+              usedSqm: r.area,
+              status: "CONSUMED",
               parentUnits: [unit._id],
             },
           ],
@@ -727,6 +1039,37 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
 
         createdUnits.push(newUnit[0]);
         resultUnits.push({ name: finalName, area: r.area });
+      }
+      const usedArea = inputResultUnits.reduce((sum, r) => sum + r.area, 0);
+
+      const remainingArea = finalArea - usedArea;
+
+      if (remainingArea > 0 && inputResultUnits.length > 0) {
+        const balanceUnitName = `${unit.unitId}A`;
+
+        const balanceUnit = await Unit.create(
+          [
+            {
+              floorId,
+              buildingId,
+              unitId: balanceUnitName,
+              usageType,
+              fitOutWork: unit.fitOutWork,
+              totalSqm: remainingArea,
+              availableSqm: remainingArea,
+              usedSqm: 0,
+              parentUnits: [unit._id],
+            },
+          ],
+          { session },
+        );
+
+        createdUnits.push(balanceUnit[0]);
+
+        resultUnits.push({
+          name: balanceUnitName,
+          area: remainingArea,
+        });
       }
     }
 
@@ -739,10 +1082,22 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
       );
 
       for (let r of inputResultUnits) {
-        const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
+        // const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
+        const finalName = r.name;
 
         const newUnit = await Unit.create(
           [
+            // {
+            //   floorId,
+            //   buildingId,
+            //   unitId: finalName,
+            //   usageType,
+            //   fitOutWork: "YES",
+            //   totalSqm: r.area,
+            //   availableSqm: r.area,
+            //   usedSqm: 0,
+            //   parentUnits: unitIds,
+            // },
             {
               floorId,
               buildingId,
@@ -750,8 +1105,9 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
               usageType,
               fitOutWork: "YES",
               totalSqm: r.area,
-              availableSqm: r.area,
-              usedSqm: 0,
+              availableSqm: 0,
+              usedSqm: r.area,
+              status: "CONSUMED",
               parentUnits: unitIds,
             },
           ],
@@ -760,6 +1116,38 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
 
         createdUnits.push(newUnit[0]);
         resultUnits.push({ name: finalName, area: r.area });
+      }
+      const usedArea = inputResultUnits.reduce((sum, r) => sum + r.area, 0);
+
+      const remainingArea = finalArea - usedArea;
+
+      if (remainingArea > 0 && inputResultUnits.length > 0) {
+        const originalName = units[0].unitId.split(" (")[0];
+        const balanceUnitName = `${originalName}A`;
+
+        const balanceUnit = await Unit.create(
+          [
+            {
+              floorId,
+              buildingId,
+              unitId: balanceUnitName,
+              usageType,
+              fitOutWork: "YES",
+              totalSqm: remainingArea,
+              availableSqm: remainingArea,
+              usedSqm: 0,
+              parentUnits: unitIds,
+            },
+          ],
+          { session },
+        );
+
+        createdUnits.push(balanceUnit[0]);
+
+        resultUnits.push({
+          name: balanceUnitName,
+          area: remainingArea,
+        });
       }
     }
 
@@ -777,7 +1165,10 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
     if (
       ["SPLIT", "MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)
     ) {
-      displayUnit = resultUnits.map((r) => r.name).join(", ");
+      // displayUnit = resultUnits.map((r) => r.name).join(", ");
+      displayUnit = `${redesignType} - ${inputResultUnits
+        .map((r) => `${r.name} (${r.area} sqm)`)
+        .join(", ")}`;
     } else if (redesignType === "MERGE") {
       displayUnit = `${redesignType} - ${units
         .map((u) => u.unitId)
@@ -816,7 +1207,7 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
               redesign: {
                 redesignType,
                 inputUnits,
-                resultUnits,
+                resultUnits: inputResultUnits,
               },
               documents: {
                 ejariDocument: buildDocs(ejariDocument),
