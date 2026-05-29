@@ -25,6 +25,12 @@ const versionSchema = new mongoose.Schema(
     totalUnitAreaSqm: Number,
     areaVariationSqm: Number,
     hasMezzanine: Boolean,
+
+    fitOutAffectedArea: {
+      type: Number,
+      default: 0,
+    },
+
     mezzanineAreaToAdd: {
       type: Number,
       default: 0,
@@ -34,6 +40,7 @@ const versionSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    
     totalUnitAreaAfterMezzanineSqm: Number,
 
     tenantName: String,

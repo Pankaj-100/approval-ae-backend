@@ -408,6 +408,7 @@ exports.submitApplicationSingle = catchAsync(async (req, res, next) => {
       totalUnitAreaSqm,
       areaVariationSqm,
       hasMezzanine,
+      fitOutAffectedArea,
       totalUnitAreaAfterMezzanineSqm,
       mezzanineAreaToAdd,
       fitOutAffectedAreaAfterMezzanine,
@@ -518,6 +519,7 @@ exports.submitApplicationSingle = catchAsync(async (req, res, next) => {
               totalUnitAreaSqm: finalArea,
               areaVariationSqm: areaVariationSqm || 0,
               hasMezzanine: !!hasMezzanine,
+              fitOutAffectedArea: fitOutAffectedArea || 0,
               mezzanineAreaToAdd: mezzanineAreaToAdd || 0,
               fitOutAffectedAreaAfterMezzanine:
                 fitOutAffectedAreaAfterMezzanine || 0,
@@ -573,6 +575,7 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
       appointmentLetter,
       fitOutDrawings,
       hasMezzanine,
+      fitOutAffectedArea,
       mezzanineAreaToAdd,
       fitOutAffectedAreaAfterMezzanine,
       totalUnitAreaAfterMezzanineSqm,
@@ -800,6 +803,7 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
               usageType,
               totalUnitAreaSqm: finalArea,
               hasMezzanine: !!hasMezzanine,
+              fitOutAffectedArea: fitOutAffectedArea || 0,
               mezzanineAreaToAdd: mezzanineAreaToAdd || 0,
               fitOutAffectedAreaAfterMezzanine:
                 fitOutAffectedAreaAfterMezzanine || 0,
