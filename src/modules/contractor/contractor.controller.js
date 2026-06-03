@@ -582,7 +582,7 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
     resetPasswordExpire: { $gt: Date.now() },
     role: role._id,
     isDeleted: false,
-  });
+  }).select("+password");
 
   if (!user) {
     return next(new ErrorHandler("Invalid or expired reset token", 400));

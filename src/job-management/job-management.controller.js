@@ -412,6 +412,13 @@ exports.reviewApplication = catchAsyncError(async (req, res, next) => {
     // update main status
     application.approvalStatus = "REJECTED";
 
+    // Single Unit rollback
+    if (application.unitType === "Single Unit" && application.unitId) {
+      await Unit.findByIdAndUpdate(application.unitId, {
+        status: "AVAILABLE",
+      });
+    }
+
     // rollback redesign units
     if (application.unitType === "Redesign Unit") {
       const redesign = latest.redesign;
