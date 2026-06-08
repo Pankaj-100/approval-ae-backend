@@ -938,16 +938,10 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
     }
 
     // ================= VALIDATE RESULT =================
-    if (
-      ["SPLIT", "MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)
-    ) {
+
+    if (["SPLIT", "MERGE_AND_SPLIT"].includes(redesignType)) {
       const total = inputResultUnits.reduce((sum, r) => sum + r.area, 0);
 
-      // if (total !== finalArea) {
-      //   throw new ErrorHandler("Result area mismatch", 400);
-      // }
-
-      // CHANGED: allow remaining area
       if (total > finalArea) {
         throw new ErrorHandler(
           "Result units area cannot exceed available area",
@@ -970,6 +964,36 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
         { session },
       );
 
+      for (const input of inputUnits) {
+        const unit = units.find(
+          (u) => u._id.toString() === input.unitId.toString(),
+        );
+
+        const remainingArea = unit.availableSqm - input.area;
+
+        if (remainingArea > 0) {
+          const balanceUnit = await Unit.create(
+            [
+              {
+                floorId,
+                buildingId,
+                unitId: `${unit.unitId}A`,
+                usageType: unit.usageType,
+                fitOutWork: unit.fitOutWork,
+                totalSqm: remainingArea,
+                availableSqm: remainingArea,
+                usedSqm: 0,
+                status: "AVAILABLE",
+                parentUnits: [unit._id],
+              },
+            ],
+            { session },
+          );
+
+          createdUnits.push(balanceUnit[0]);
+        }
+      }
+
       const finalName = `${generateName("MERGE", units, finalArea)}-${Date.now()}`;
 
       const mergedUnit = await Unit.create(
@@ -981,8 +1005,9 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
             usageType,
             fitOutWork: "YES",
             totalSqm: finalArea,
-            availableSqm: finalArea,
-            usedSqm: 0,
+            availableSqm: 0,
+            usedSqm: finalArea,
+            status: "CONSUMED",
             parentUnits: unitIds,
           },
         ],
@@ -990,7 +1015,14 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
       );
 
       createdUnits.push(mergedUnit[0]);
-      resultUnits = [{ name: finalName, area: finalArea }];
+
+      resultUnits = [
+        {
+          unitId: mergedUnit[0]._id,
+          name: finalName,
+          area: finalArea,
+        },
+      ];
     }
 
     // ================= CASE 2: SPLIT =================
@@ -1004,23 +1036,10 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
       );
 
       for (let r of inputResultUnits) {
-        // const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
-
         const finalName = r.name;
 
         const newUnit = await Unit.create(
           [
-            // {
-            //   floorId,
-            //   buildingId,
-            //   unitId: finalName,
-            //   usageType,
-            //   fitOutWork: unit.fitOutWork,
-            //   totalSqm: r.area,
-            //   availableSqm: r.area,
-            //   usedSqm: 0,
-            //   parentUnits: [unit._id],
-            // },
             {
               floorId,
               buildingId,
@@ -1038,11 +1057,16 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
         );
 
         createdUnits.push(newUnit[0]);
-        resultUnits.push({ name: finalName, area: r.area });
+
+        resultUnits.push({
+          unitId: newUnit[0]._id,
+          name: finalName,
+          area: r.area,
+        });
       }
       const usedArea = inputResultUnits.reduce((sum, r) => sum + r.area, 0);
 
-      const remainingArea = finalArea - usedArea;
+      const remainingArea = unit.availableSqm - usedArea;
 
       if (remainingArea > 0 && inputResultUnits.length > 0) {
         const balanceUnitName = `${unit.unitId}A`;
@@ -1065,90 +1089,249 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
         );
 
         createdUnits.push(balanceUnit[0]);
-
-        resultUnits.push({
-          name: balanceUnitName,
-          area: remainingArea,
-        });
       }
     }
 
-    // ================= CASE 3 & 4 =================
-    if (["MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)) {
+    // ================= CASE 3 : MERGE_AND_SPLIT =================
+    if (redesignType === "MERGE_AND_SPLIT") {
+      // STEP 1 - consume original units
+
       await Unit.updateMany(
         { _id: { $in: unitIds } },
         { status: "CONSUMED" },
         { session },
       );
 
-      for (let r of inputResultUnits) {
-        // const finalName = `${r.name} (${r.area} sqm)-${Date.now()}`;
-        const finalName = r.name;
+      // STEP 2 - create balance units from parents
 
-        const newUnit = await Unit.create(
+      for (const input of inputUnits) {
+        const unit = units.find(
+          (u) => u._id.toString() === input.unitId.toString(),
+        );
+
+        const remainingArea = unit.availableSqm - input.area;
+
+        if (remainingArea > 0) {
+          const balanceUnit = await Unit.create(
+            [
+              {
+                floorId,
+                buildingId,
+                unitId: `${unit.unitId}A`,
+                usageType: unit.usageType,
+                fitOutWork: unit.fitOutWork,
+                totalSqm: remainingArea,
+                availableSqm: remainingArea,
+                usedSqm: 0,
+                status: "AVAILABLE",
+                parentUnits: [unit._id],
+              },
+            ],
+            { session },
+          );
+
+          createdUnits.push(balanceUnit[0]);
+        }
+      }
+
+      // STEP 3 - create merged unit
+
+      const [mergedUnit] = await Unit.create(
+        [
+          {
+            floorId,
+            buildingId,
+            unitId: `MERGED-${Date.now()}`,
+            usageType,
+            fitOutWork: "YES",
+            totalSqm: finalArea,
+            availableSqm: 0,
+            usedSqm: finalArea,
+            status: "CONSUMED",
+            parentUnits: unitIds,
+          },
+        ],
+        { session },
+      );
+
+      createdUnits.push(mergedUnit);
+
+      // STEP 4 - split merged unit
+
+      for (const r of inputResultUnits) {
+        const [newUnit] = await Unit.create(
           [
-            // {
-            //   floorId,
-            //   buildingId,
-            //   unitId: finalName,
-            //   usageType,
-            //   fitOutWork: "YES",
-            //   totalSqm: r.area,
-            //   availableSqm: r.area,
-            //   usedSqm: 0,
-            //   parentUnits: unitIds,
-            // },
             {
               floorId,
               buildingId,
-              unitId: finalName,
+              unitId: r.name,
               usageType,
               fitOutWork: "YES",
               totalSqm: r.area,
               availableSqm: 0,
               usedSqm: r.area,
               status: "CONSUMED",
-              parentUnits: unitIds,
+              parentUnits: [mergedUnit._id],
             },
           ],
           { session },
         );
 
-        createdUnits.push(newUnit[0]);
-        resultUnits.push({ name: finalName, area: r.area });
+        createdUnits.push(newUnit);
+
+        resultUnits.push({
+          unitId: newUnit._id,
+          name: r.name,
+          area: r.area,
+        });
       }
+
       const usedArea = inputResultUnits.reduce((sum, r) => sum + r.area, 0);
 
       const remainingArea = finalArea - usedArea;
 
-      if (remainingArea > 0 && inputResultUnits.length > 0) {
-        const originalName = units[0].unitId.split(" (")[0];
-        const balanceUnitName = `${originalName}A`;
-
-        const balanceUnit = await Unit.create(
+      if (remainingArea > 0) {
+        const [balanceUnit] = await Unit.create(
           [
             {
               floorId,
               buildingId,
-              unitId: balanceUnitName,
+              unitId: `${mergedUnit.unitId}A`,
               usageType,
               fitOutWork: "YES",
               totalSqm: remainingArea,
               availableSqm: remainingArea,
               usedSqm: 0,
-              parentUnits: unitIds,
+              status: "AVAILABLE",
+              parentUnits: [mergedUnit._id],
             },
           ],
           { session },
         );
 
-        createdUnits.push(balanceUnit[0]);
-
-        resultUnits.push({
-          name: balanceUnitName,
-          area: remainingArea,
-        });
+        createdUnits.push(balanceUnit);
       }
+    }
+
+    // ================= CASE 4 : SPLIT_AND_MERGE =================
+    if (redesignType === "SPLIT_AND_MERGE") {
+      const createdSplitUnits = [];
+
+      for (const input of inputUnits) {
+        const parentUnit = units.find(
+          (u) => u._id.toString() === input.unitId.toString(),
+        );
+
+        await Unit.findByIdAndUpdate(
+          parentUnit._id,
+          { status: "CONSUMED" },
+          { session },
+        );
+
+        if (!input.splitUnits?.length) {
+          throw new ErrorHandler(
+            `splitUnits required for ${parentUnit.unitId}`,
+            400,
+          );
+        }
+
+        const totalSplitArea = input.splitUnits.reduce(
+          (sum, s) => sum + s.area,
+          0,
+        );
+
+        if (totalSplitArea > input.area) {
+          throw new ErrorHandler(
+            `Split area exceeds selected area for ${parentUnit.unitId}`,
+            400,
+          );
+        }
+
+        // ADD THIS BLOCK HERE
+        const remainingArea = input.area - totalSplitArea;
+
+        if (remainingArea > 0) {
+          const [balanceUnit] = await Unit.create(
+            [
+              {
+                floorId,
+                buildingId,
+                unitId: `${parentUnit.unitId}A`,
+                usageType,
+                fitOutWork: parentUnit.fitOutWork,
+                totalSqm: remainingArea,
+                availableSqm: remainingArea,
+                usedSqm: 0,
+                status: "AVAILABLE",
+                parentUnits: [parentUnit._id],
+              },
+            ],
+            { session },
+          );
+
+          createdUnits.push(balanceUnit);
+        }
+
+        // split create
+
+        for (const split of input.splitUnits) {
+          const [splitUnit] = await Unit.create(
+            [
+              {
+                floorId,
+                buildingId,
+                unitId: split.name,
+                usageType,
+                fitOutWork: parentUnit.fitOutWork,
+                totalSqm: split.area,
+                availableSqm: split.area,
+                usedSqm: 0,
+                status: "CONSUMED",
+                parentUnits: [parentUnit._id],
+              },
+            ],
+            { session },
+          );
+
+          createdSplitUnits.push(splitUnit);
+          createdUnits.push(splitUnit);
+        }
+      }
+
+      // merge selected split units
+
+      const mergeIds = createdSplitUnits.map((u) => u._id);
+
+      const totalMergeArea = createdSplitUnits.reduce(
+        (sum, u) => sum + u.totalSqm,
+        0,
+      );
+
+      const [finalUnit] = await Unit.create(
+        [
+          {
+            floorId,
+            buildingId,
+            unitId: inputResultUnits[0].name,
+            usageType,
+            fitOutWork: "YES",
+            totalSqm: totalMergeArea,
+            availableSqm: 0,
+            usedSqm: totalMergeArea,
+            status: "CONSUMED",
+            parentUnits: mergeIds,
+          },
+        ],
+        { session },
+      );
+
+      createdUnits.push(finalUnit);
+
+      resultUnits.push({
+        unitId: finalUnit._id,
+        name: finalUnit.unitId,
+        area: totalMergeArea,
+      });
     }
 
     // ================= DOCUMENT =================
@@ -1158,15 +1341,12 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
     const seq = await getNextSequence("application", session);
     const referenceNumber = `APP${String(seq).padStart(9, "0")}`;
 
-    // const displayUnit = generateName(redesignType, units, finalArea);
-
     let displayUnit = "";
 
     if (
       ["SPLIT", "MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)
     ) {
-      // displayUnit = resultUnits.map((r) => r.name).join(", ");
-      displayUnit = `${redesignType} - ${inputResultUnits
+      displayUnit = `${redesignType} - ${resultUnits
         .map((r) => `${r.name} (${r.area} sqm)`)
         .join(", ")}`;
     } else if (redesignType === "MERGE") {
@@ -1207,7 +1387,7 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
               redesign: {
                 redesignType,
                 inputUnits,
-                resultUnits: inputResultUnits,
+                resultUnits,
               },
               documents: {
                 ejariDocument: buildDocs(ejariDocument),

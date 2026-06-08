@@ -20,6 +20,8 @@ const {
   getFloorDocuments,
   getApplicationDocuments,
   getUnitUsers,
+  submitFinalCompletion,
+  resetApplicationUnits,
 } = require("./plot.controller");
 const { upload } = require("../../utils/s3");
 const { auth } = require("../../middleware/auth");
@@ -49,5 +51,7 @@ route.get("/building-documents/:plotId", getPlotDocuments);
 route.get("/floor-documents/:floorId", getFloorDocuments);
 route.get("/rental-documents/:applicationId", getApplicationDocuments);
 route.get("/unit-involved-users/:unitId", getUnitUsers);
+route.post("/submit-final-completion", submitFinalCompletion);
+route.post("/reset-application-units", resetApplicationUnits);
 
 module.exports = route;

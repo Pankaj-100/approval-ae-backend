@@ -45,11 +45,13 @@ const unitSchema = new mongoose.Schema(
     availableSqm: {
       type: Number,
       min: 0,
+      default: 0,
     },
 
     usedSqm: {
       type: Number,
       min: 0,
+      default: 0,
     },
 
     status: {

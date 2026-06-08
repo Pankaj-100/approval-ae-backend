@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const PlotDetails = require("./plot.model");
 const { s3Uploadv2 } = require("../../utils/s3");
 const User = require("../modules/user/user.model");
@@ -322,6 +323,9 @@ exports.createProject = catchAsync(async (req, res, next) => {
             usageType: unit.usageType,
             fitOutWork: unit.fitOutWork,
             totalSqm: unit.totalSqm,
+            availableSqm: unit.totalSqm,
+            usedSqm: 0,
+            status: "AVAILABLE",
             electricMeter: unit.electricMeter || null,
           });
 
@@ -1129,5 +1133,134 @@ exports.getUnitUsers = catchAsync(async (req, res, next) => {
 
       users: uniqueUsers,
     },
+  });
+});
+
+exports.submitFinalCompletion = catchAsync(async (req, res, next) => {
+  const { applicationId, fileUrl } = req.body;
+
+  if (!applicationId) {
+    throw new ErrorHandler("Application ID is required", 400);
+  }
+
+  if (!fileUrl) {
+    throw new ErrorHandler("Final completion document is required", 400);
+  }
+
+  await mongoose.connection.transaction(async (session) => {
+    const application =
+      await ContractorApplication.findById(applicationId).session(session);
+
+    if (!application) {
+      throw new ErrorHandler("Application not found", 404);
+    }
+
+    // Prevent duplicate submission
+    if (application.finalCompletionDocument?.fileUrl) {
+      throw new ErrorHandler("Final completion already submitted", 400);
+    }
+
+    // Save final completion document
+    application.finalCompletionDocument = {
+      fileUrl,
+      uploadedAt: new Date(),
+      uploadedBy: req.user._id,
+    };
+
+    application.jobStatus = "COMPLETED";
+
+    // Get latest version
+    const latestVersion = application.versions[application.versions.length - 1];
+
+    // ================= REDESIGN UNIT =================
+    if (application.unitType === "Redesign Unit") {
+      const resultUnits = latestVersion?.redesign?.resultUnits || [];
+
+      for (const resultUnit of resultUnits) {
+        await Unit.findByIdAndUpdate(
+          resultUnit.unitId,
+          {
+            status: "AVAILABLE",
+            availableSqm: resultUnit.area,
+            usedSqm: 0,
+          },
+          { session },
+        );
+      }
+    }
+
+    // ================= SINGLE UNIT =================
+    if (application.unitType === "Single Unit") {
+      await Unit.findByIdAndUpdate(
+        application.unitId,
+        {
+          status: "AVAILABLE",
+          availableSqm: latestVersion.totalUnitAreaSqm || 0,
+          usedSqm: 0,
+        },
+        { session },
+      );
+    }
+
+    await application.save({ session });
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Final completion submitted successfully",
+  });
+});
+
+exports.resetApplicationUnits = catchAsync(async (req, res, next) => {
+  const { applicationId } = req.body;
+
+  if (!applicationId) {
+    throw new ErrorHandler("Application ID is required", 400);
+  }
+
+  await mongoose.connection.transaction(async (session) => {
+    const application =
+      await ContractorApplication.findById(applicationId).session(session);
+
+    if (!application) {
+      throw new ErrorHandler("Application not found", 404);
+    }
+
+    const latestVersion = application.versions[application.versions.length - 1];
+
+    // ================= SINGLE UNIT =================
+    if (application.unitType === "Single Unit") {
+      await Unit.findByIdAndUpdate(
+        application.unitId,
+        {
+          status: "AVAILABLE",
+          availableSqm: latestVersion.totalUnitAreaSqm,
+          usedSqm: 0,
+        },
+        { session },
+      );
+    }
+
+    // ================= REDESIGN UNIT =================
+    if (application.unitType === "Redesign Unit") {
+      const resultUnits = latestVersion?.redesign?.resultUnits || [];
+
+      for (const resultUnit of resultUnits) {
+        await Unit.findByIdAndUpdate(
+          resultUnit.unitId,
+          {
+            status: "AVAILABLE",
+            availableSqm: resultUnit.area,
+            usedSqm: 0,
+          },
+          { session },
+        );
+      }
+    }
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Application units reset successfully",
   });
 });

@@ -40,7 +40,7 @@ const versionSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    
+
     totalUnitAreaAfterMezzanineSqm: Number,
 
     tenantName: String,
@@ -66,6 +66,10 @@ const versionSchema = new mongoose.Schema(
 
       resultUnits: [
         {
+          unitId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Unit",
+          },
           name: String,
           area: Number,
         },
@@ -184,7 +188,15 @@ const contractorApplicationSchema = new mongoose.Schema(
     versions: [versionSchema],
 
     nocDoc: {
-      // type: String,
+      fileUrl: String,
+      uploadedAt: Date,
+      uploadedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    },
+    
+    finalCompletionDocument: {
       fileUrl: String,
       uploadedAt: Date,
       uploadedBy: {

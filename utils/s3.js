@@ -1,5 +1,6 @@
 const S3 = require("aws-sdk/clients/s3");
 const multer = require("multer");
+const path = require("path");
 
 exports.s3Uploadv2 = async (file) => {
   const s3 = new S3({
@@ -39,28 +40,14 @@ exports.s3UploadMulti = async (files) => {
 
 const storage = multer.memoryStorage();
 
-// const fileFilter = (req, file, cb) => {
-//   if (file.mimetype.split("/")[0] === "image") {
-//     req.video_file = false;
-//     cb(null, true);
-//     //   } else if (file.mimetype.split("/")[0] === "video") {
-//     //     req.video_file = true;
-//     //     cb(null, true);
-//   } else {
-//     cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE"), false);
-//   }
-// };
-
-// // ["image", "jpeg"]
-
-// exports.upload = multer({
-//   storage,
-//   fileFilter,
-//   limits: { fileSize: 11006600, files: 5 },
-// });
-
 const fileFilter = (req, file, cb) => {
   const mimetype = file.mimetype;
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  // allow zip by extension
+  if (ext === ".zip") {
+    return cb(null, true);
+  }
 
   // allow image
   if (mimetype.startsWith("image/")) {
@@ -69,6 +56,17 @@ const fileFilter = (req, file, cb) => {
 
   // allow pdf
   if (mimetype === "application/pdf") {
+    return cb(null, true);
+  }
+
+  // allow zip files
+  const allowedZipTypes = [
+    "application/zip",
+    "application/x-zip-compressed",
+    "multipart/x-zip",
+  ];
+
+  if (allowedZipTypes.includes(mimetype)) {
     return cb(null, true);
   }
 
@@ -99,7 +97,10 @@ const fileFilter = (req, file, cb) => {
   }
 
   // reject other files
-  cb(new Error("Only images, PDF, DWG and AutoCAD files are allowed"), false);
+  cb(
+    new Error("Only images, PDF,ZIP, DWG and AutoCAD files are allowed"),
+    false,
+  );
 };
 
 exports.upload = multer({
