@@ -138,6 +138,27 @@ const contractorApplicationSchema = new mongoose.Schema(
       ref: "User",
     },
 
+    contractorHistory: [
+      {
+        oldContractorId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        newContractorId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        changedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        changedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -195,7 +216,7 @@ const contractorApplicationSchema = new mongoose.Schema(
         ref: "User",
       },
     },
-    
+
     finalCompletionDocument: {
       fileUrl: String,
       uploadedAt: Date,

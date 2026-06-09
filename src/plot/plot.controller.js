@@ -1264,3 +1264,59 @@ exports.resetApplicationUnits = catchAsync(async (req, res, next) => {
     message: "Application units reset successfully",
   });
 });
+
+exports.changeApplicationContractor = catchAsync(async (req, res, next) => {
+  const { applicationId, contractorId } = req.body;
+
+  if (!applicationId || !contractorId) {
+    throw new ErrorHandler(
+      "Application ID and Contractor ID are required",
+      400,
+    );
+  }
+
+  const application = await ContractorApplication.findById(applicationId);
+
+  if (!application) {
+    throw new ErrorHandler("Application not found", 404);
+  }
+
+  const contractor = await User.findById(contractorId).populate("role");
+
+  if (!contractor) {
+    throw new ErrorHandler("Contractor not found", 404);
+  }
+
+  // optional role validation
+  if (contractor.role?.name !== "CONTRACTOR") {
+    throw new ErrorHandler("Selected user is not a contractor", 400);
+  }
+
+  // same contractor check
+  if (
+    application.contractorId &&
+    application.contractorId.toString() === contractorId
+  ) {
+    throw new ErrorHandler("This contractor is already assigned", 400);
+  }
+
+  // save history only if contractor already exists
+  if (application.contractorId) {
+    application.contractorHistory.push({
+      oldContractorId: application.contractorId,
+      newContractorId: contractorId,
+      changedBy: req.user?._id,
+    });
+  }
+
+  // update contractor
+  application.contractorId = contractorId;
+
+  await application.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Contractor changed successfully",
+    data: application,
+  });
+});
