@@ -361,8 +361,12 @@ exports.reviewApplication = catchAsyncError(async (req, res, next) => {
   }
 
   // remarks required for reject
-  if (action === "REJECT" && !remarks) {
-    return next(new ErrorHandler("Remarks is required for rejection", 400));
+  // if (action === "REJECT" && !remarks) {
+  //   return next(new ErrorHandler("Remarks is required for rejection", 400));
+  // }
+
+  if (!remarks) {
+    return next(new ErrorHandler("Remarks is required", 400));
   }
 
   // find application
@@ -391,7 +395,8 @@ exports.reviewApplication = catchAsyncError(async (req, res, next) => {
   latest.status = action === "APPROVE" ? "APPROVED" : "REJECTED";
 
   // save remarks for reject
-  latest.remarks = action === "REJECT" ? remarks : null;
+  // latest.remarks = action === "REJECT" ? remarks : null;
+  latest.remarks = remarks;
 
   // save review details
   latest.reviewedAt = new Date();
@@ -543,6 +548,7 @@ exports.reviewDrawingFile = catchAsyncError(async (req, res, next) => {
     section,
     type,
     action,
+    approvalRemarks,
     rejectionReason,
     rejectionReasonDoc,
   } = req.body;
@@ -560,7 +566,13 @@ exports.reviewDrawingFile = catchAsyncError(async (req, res, next) => {
     return next(new ErrorHandler("Invalid action", 400));
   }
 
-  // Reject validation
+  // validation
+  if (action === "APPROVE") {
+    if (!approvalRemarks) {
+      return next(new ErrorHandler("Approval remarks required", 400));
+    }
+  }
+
   if (action === "REJECT") {
     if (!rejectionReason) {
       return next(new ErrorHandler("Rejection reason required", 400));
@@ -600,6 +612,8 @@ exports.reviewDrawingFile = catchAsyncError(async (req, res, next) => {
 
   // ================= UPDATE =================
   file.status = action === "APPROVE" ? "APPROVED" : "REJECTED";
+
+  file.approvalRemarks = action === "APPROVE" ? approvalRemarks : null;
 
   file.rejectionReason = action === "REJECT" ? rejectionReason : null;
 
@@ -657,6 +671,7 @@ exports.reviewDrawingFile = catchAsyncError(async (req, res, next) => {
       type,
       versionNumber: file.versionNumber,
       status: file.status,
+      approvalRemarks: file.approvalRemarks,
       rejectionReason: file.rejectionReason,
       rejectionReasonDoc: file.rejectionReasonDoc,
     },
@@ -766,8 +781,14 @@ exports.getWorkPermitByApplicationId = catchAsyncError(
 
 //review work permit
 exports.reviewWorkPermitFile = catchAsyncError(async (req, res, next) => {
-  const { submissionId, docType, action, rejectionReason, rejectionReasonDoc } =
-    req.body;
+  const {
+    submissionId,
+    docType,
+    action,
+    rejectionReason,
+    approvalRemarks,
+    rejectionReasonDoc,
+  } = req.body;
 
   const validDocs = [
     "dcd",
@@ -787,6 +808,12 @@ exports.reviewWorkPermitFile = catchAsyncError(async (req, res, next) => {
   if (!["APPROVE", "REJECT"].includes(action))
     return next(new ErrorHandler("Invalid action", 400));
 
+  if (action === "APPROVE") {
+    if (!approvalRemarks) {
+      return next(new ErrorHandler("Approval remarks required", 400));
+    }
+  }
+
   if (action === "REJECT" && (!rejectionReason || !rejectionReasonDoc))
     return next(new ErrorHandler("Rejection reason & doc required", 400));
 
@@ -804,6 +831,7 @@ exports.reviewWorkPermitFile = catchAsyncError(async (req, res, next) => {
 
   // UPDATE
   file.status = action === "APPROVE" ? "APPROVED" : "REJECTED";
+  file.approvalRemarks = action === "APPROVE" ? approvalRemarks : null;
   file.rejectionReason = action === "REJECT" ? rejectionReason : null;
   file.rejectionReasonDoc = action === "REJECT" ? rejectionReasonDoc : null;
   file.approvedBy = req.user?._id || null;
@@ -848,6 +876,9 @@ exports.reviewWorkPermitFile = catchAsyncError(async (req, res, next) => {
       docType,
       versionNumber: file.versionNumber,
       status: file.status,
+      approvalRemarks: file.approvalRemarks,
+      rejectionReason: file.rejectionReason,
+      rejectionReasonDoc: file.rejectionReasonDoc,
     },
   });
 });
@@ -992,8 +1023,14 @@ exports.getInspectionByApplicationId = catchAsyncError(
 
 // review inspection
 exports.reviewInspectionFile = catchAsyncError(async (req, res, next) => {
-  const { submissionId, docType, action, rejectionReason, rejectionReasonDoc } =
-    req.body;
+  const {
+    submissionId,
+    docType,
+    action,
+    rejectionReason,
+    approvalRemarks,
+    rejectionReasonDoc,
+  } = req.body;
 
   const validDocs = [
     "sitePhoto",
@@ -1015,7 +1052,14 @@ exports.reviewInspectionFile = catchAsyncError(async (req, res, next) => {
   if (!["APPROVE", "REJECT"].includes(action))
     return next(new ErrorHandler("Invalid action", 400));
 
-  // Reject validation
+  // validation
+
+  if (action === "APPROVE") {
+    if (!approvalRemarks) {
+      return next(new ErrorHandler("Approval remarks required", 400));
+    }
+  }
+
   if (action === "REJECT") {
     if (!rejectionReason)
       return next(new ErrorHandler("Rejection reason required", 400));
@@ -1042,6 +1086,8 @@ exports.reviewInspectionFile = catchAsyncError(async (req, res, next) => {
 
   // ================= UPDATE =================
   file.status = action === "APPROVE" ? "APPROVED" : "REJECTED";
+
+  file.approvalRemarks = action === "APPROVE" ? approvalRemarks : null;
 
   file.rejectionReason = action === "REJECT" ? rejectionReason : null;
 
@@ -1090,6 +1136,7 @@ exports.reviewInspectionFile = catchAsyncError(async (req, res, next) => {
       docType,
       versionNumber: file.versionNumber,
       status: file.status,
+      approvalRemarks: file.approvalRemarks,
       rejectionReason: file.rejectionReason,
       rejectionReasonDoc: file.rejectionReasonDoc,
     },

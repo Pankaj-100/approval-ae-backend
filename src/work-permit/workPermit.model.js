@@ -33,6 +33,10 @@ const fileVersionSchema = new mongoose.Schema(
 
     approvedAt: Date,
 
+    approvalRemarks: {
+      type: String,
+    },
+
     rejectionReason: String,
 
     rejectionReasonDoc: {

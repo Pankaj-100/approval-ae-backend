@@ -184,11 +184,11 @@ const contractorApplicationSchema = new mongoose.Schema(
     //   default: "PENDING",
     // },
 
-    // approvalStatus: {
-    //   type: String,
-    //   enum: ["PENDING", "APPROVED", "REJECTED"],
-    //   default: "PENDING",
-    // },
+    approvalStatus: {
+      type: String,
+      enum: ["PENDING", "APPROVED", "REJECTED"],
+      default: "PENDING",
+    },
 
     plotNumber: String,
     buildingName: String,

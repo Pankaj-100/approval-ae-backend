@@ -39,6 +39,11 @@ const fileVersionSchema = new mongoose.Schema(
 
     approvedAt: Date,
 
+    approvalRemarks: {
+      type: String,
+      default: null,
+    },
+
     rejectionReason: String,
 
     rejectionReasonDoc: {
@@ -72,16 +77,32 @@ const drawingSubmissionSchema = new mongoose.Schema(
     },
 
     architectural: {
+      // reviewer: {
+      //   type: mongoose.Schema.Types.ObjectId,
+      //   ref: "User",
+      //   default: null,
+      // },
+
       autoCad: [fileVersionSchema],
       dwf: [fileVersionSchema],
     },
 
     mep: {
+      // reviewer: {
+      //   type: mongoose.Schema.Types.ObjectId,
+      //   ref: "User",
+      //   default: null,
+      // },
       autoCad: [fileVersionSchema],
       dwf: [fileVersionSchema],
     },
 
     structural: {
+      // reviewer: {
+      //   type: mongoose.Schema.Types.ObjectId,
+      //   ref: "User",
+      //   default: null,
+      // },
       autoCad: [fileVersionSchema],
       dwf: [fileVersionSchema],
     },
