@@ -1211,6 +1211,24 @@ exports.submitFinalCompletion = catchAsync(async (req, res, next) => {
   });
 });
 
+exports.getFinalCompletion = catchAsync(async (req, res, next) => {
+  const { applicationId } = req.params;
+
+  const application = await ContractorApplication.findById(applicationId)
+    .populate("contractorId", "name email")
+    .populate("assignedTo", "name email")
+    .populate("finalCompletionDocument.uploadedBy", "name email");
+
+  if (!application) {
+    throw new ErrorHandler("Application not found", 404);
+  }
+
+  res.status(200).json({
+    success: true,
+    data: application,
+  });
+});
+
 exports.resetApplicationUnits = catchAsync(async (req, res, next) => {
   const { applicationId } = req.body;
 
@@ -1318,5 +1336,56 @@ exports.changeApplicationContractor = catchAsync(async (req, res, next) => {
     success: true,
     message: "Contractor changed successfully",
     data: application,
+  });
+});
+
+exports.getContractorUsers = catchAsync(async (req, res, next) => {
+  let { page = 1, limit = 10, search = "" } = req.query;
+
+  page = Number(page);
+  limit = Number(limit);
+
+  const contractorRole = await Role.findOne({
+    name: "CONTRACTOR",
+  });
+
+  if (!contractorRole) {
+    return next(new ErrorHandler("Contractor role not found", 404));
+  }
+
+  let searchQuery = {};
+
+  if (search) {
+    searchQuery.$or = [
+      { name: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+      { mobile_number: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  const query = {
+    isDeleted: false,
+    isVerified: true,
+    role: contractorRole._id,
+    ...searchQuery,
+  };
+
+  const users = await User.find(query)
+    .populate("role", "name")
+    .select("_id name email mobile_number role")
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .sort({ createdAt: -1 });
+
+  const total = await User.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: users,
+    pagination: {
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+    },
   });
 });
