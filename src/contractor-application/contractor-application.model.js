@@ -173,6 +173,7 @@ const contractorApplicationSchema = new mongoose.Schema(
         "NOC_PENDING",
         "WORK_PERMIT",
         "INSPECTION",
+        "FINAL_COMPLETION",
         "COMPLETED",
       ],
       default: "APPLICATION_REVIEW",

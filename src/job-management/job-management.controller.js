@@ -1121,7 +1121,7 @@ exports.reviewInspectionFile = catchAsyncError(async (req, res, next) => {
   if (allApproved) {
     await ContractorApplication.findByIdAndUpdate(
       inspection.contractorApplicationId,
-      { jobStatus: "COMPLETED" },
+      { jobStatus: "FINAL_COMPLETION" },
     );
   }
 

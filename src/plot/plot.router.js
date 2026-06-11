@@ -23,6 +23,8 @@ const {
   submitFinalCompletion,
   resetApplicationUnits,
   changeApplicationContractor,
+  getFinalCompletion,
+  getContractorUsers,
 } = require("./plot.controller");
 const { upload } = require("../../utils/s3");
 const { auth } = require("../../middleware/auth");
@@ -50,7 +52,9 @@ route.get("/floor-documents/:floorId", getFloorDocuments);
 route.get("/rental-documents/:applicationId", getApplicationDocuments);
 route.get("/unit-involved-users/:unitId", getUnitUsers);
 route.post("/submit-final-completion", submitFinalCompletion);
+route.get("/final-completion/:applicationId", getFinalCompletion);
 route.post("/reset-application-units", resetApplicationUnits);
+route.get("/contractors", getContractorUsers);
 route.put("/change-contractor", changeApplicationContractor);
 route.get("/:id", getPlotById);
 route.delete("/:id", deletePlot);
