@@ -736,42 +736,138 @@ exports.deleteUnit = catchAsync(async (req, res, next) => {
 
 // ================= GET UNIT DETAILS WITH APPLICATION =================
 
+// exports.getUnitDetailsWithApplication = catchAsync(async (req, res, next) => {
+//   const { unitId } = req.params;
+
+//   // CHECK UNIT EXISTS
+//   const unit = await Unit.findOne({
+//     _id: unitId,
+//     isDeleted: false,
+//   }).lean();
+
+//   // UNIT NOT FOUND
+//   if (!unit) {
+//     return next(new ErrorHandler("Unit not found", 404));
+//   }
+
+//   // FIND APPLICATION RELATED TO THIS UNIT
+//   const application = await ContractorApplication.findOne({
+//     isDeleted: false,
+
+//     // CHECK NORMAL UNIT OR REDESIGN UNIT
+//     $or: [
+//       { unitId: unitId },
+//       { "versions.redesign.inputUnits.unitId": unitId },
+//     ],
+//   })
+//     // POPULATE BASIC DETAILS
+//     .populate("plotId", "plotNumber")
+//     .populate("buildingId", "buildingName")
+//     .populate("floorId", "floorName")
+//     .lean();
+
+//   // RESPONSE
+//   res.status(200).json({
+//     success: true,
+//     data: {
+//       unit,
+//       application: application || null,
+//     },
+//   });
+// });
+
 exports.getUnitDetailsWithApplication = catchAsync(async (req, res, next) => {
   const { unitId } = req.params;
 
-  // CHECK UNIT EXISTS
   const unit = await Unit.findOne({
     _id: unitId,
     isDeleted: false,
   }).lean();
 
-  // UNIT NOT FOUND
   if (!unit) {
     return next(new ErrorHandler("Unit not found", 404));
   }
 
-  // FIND APPLICATION RELATED TO THIS UNIT
-  const application = await ContractorApplication.findOne({
-    isDeleted: false,
+  // ================= GET ALL RELATED UNITS =================
+  const visited = new Set();
+  const queue = [unit._id.toString()];
 
-    // CHECK NORMAL UNIT OR REDESIGN UNIT
+  while (queue.length) {
+    const currentId = queue.shift();
+
+    if (visited.has(currentId)) continue;
+
+    visited.add(currentId);
+
+    const currentUnit = await Unit.findById(currentId)
+      .select("parentUnits")
+      .lean();
+
+    if (!currentUnit) continue;
+
+    // Parents
+    for (const parentId of currentUnit.parentUnits || []) {
+      const id = parentId.toString();
+
+      if (!visited.has(id)) {
+        queue.push(id);
+      }
+    }
+
+    // Children
+    const childUnits = await Unit.find({
+      parentUnits: currentId,
+      isDeleted: false,
+    })
+      .select("_id")
+      .lean();
+
+    for (const child of childUnits) {
+      const id = child._id.toString();
+
+      if (!visited.has(id)) {
+        queue.push(id);
+      }
+    }
+  }
+
+  const relatedUnitIds = [...visited];
+
+  // ================= GET ALL APPLICATIONS =================
+  const applications = await ContractorApplication.find({
+    isDeleted: false,
     $or: [
-      { unitId: unitId },
-      { "versions.redesign.inputUnits.unitId": unitId },
+      {
+        unitId: {
+          $in: relatedUnitIds,
+        },
+      },
+      {
+        "versions.redesign.inputUnits.unitId": {
+          $in: relatedUnitIds,
+        },
+      },
+      {
+        "versions.redesign.resultUnits.unitId": {
+          $in: relatedUnitIds,
+        },
+      },
     ],
   })
-    // POPULATE BASIC DETAILS
     .populate("plotId", "plotNumber")
     .populate("buildingId", "buildingName")
     .populate("floorId", "floorName")
+    .populate("contractorId", "name email")
+    .sort({ createdAt: 1 })
     .lean();
 
-  // RESPONSE
   res.status(200).json({
     success: true,
     data: {
       unit,
-      application: application || null,
+      totalApplications: applications.length,
+      relatedUnitIds,
+      applications,
     },
   });
 });
@@ -848,11 +944,12 @@ exports.getPlotDocuments = catchAsync(async (req, res, next) => {
   res.status(200).json({
     success: true,
     message: "Plot documents fetched successfully",
-    data: {
-      plotId: plot._id,
-      plotNumber: plot.plotNumber,
-      documents: plot.documents,
-    },
+    // data: {
+    //   plotId: plot._id,
+    //   plotNumber: plot.plotNumber,
+    //   documents: plot.documents,
+    // },
+    data: plot,
   });
 });
 
@@ -922,32 +1019,33 @@ exports.getApplicationDocuments = catchAsync(async (req, res, next) => {
   }
 
   // GET CURRENT VERSION
-  const currentVersion = application.versions.find(
-    (v) => v.versionNumber === application.currentVersion,
-  );
+  // const currentVersion = application.versions.find(
+  //   (v) => v.versionNumber === application.currentVersion,
+  // );
 
   // VERSION NOT FOUND
-  if (!currentVersion) {
-    return next(new ErrorHandler("Version not found", 404));
-  }
+  // if (!currentVersion) {
+  //   return next(new ErrorHandler("Version not found", 404));
+  // }
 
   // RESPONSE
   res.status(200).json({
     success: true,
     message: "Application documents fetched successfully",
-    data: {
-      applicationId: application._id,
-      referenceNumber: application.referenceNumber,
-      currentVersion: application.currentVersion,
+    // data: {
+    //   applicationId: application._id,
+    //   referenceNumber: application.referenceNumber,
+    //   currentVersion: application.currentVersion,
 
-      documents: {
-        ejariDocument: currentVersion.documents?.ejariDocument || [],
+    //   documents: {
+    //     ejariDocument: currentVersion.documents?.ejariDocument || [],
 
-        appointmentLetter: currentVersion.documents?.appointmentLetter || [],
+    //     appointmentLetter: currentVersion.documents?.appointmentLetter || [],
 
-        fitOutDrawings: currentVersion.documents?.fitOutDrawings || [],
-      },
-    },
+    //     fitOutDrawings: currentVersion.documents?.fitOutDrawings || [],
+    //   },
+    // },
+    data: application,
   });
 });
 

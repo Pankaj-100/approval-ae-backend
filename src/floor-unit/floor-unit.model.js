@@ -26,6 +26,11 @@ const unitSchema = new mongoose.Schema(
       trim: true,
     },
 
+    electricMeter: {
+      type: String,
+      default: null,
+    },
+
     usageType: {
       type: String,
       required: true,
