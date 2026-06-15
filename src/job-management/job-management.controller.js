@@ -361,12 +361,8 @@ exports.reviewApplication = catchAsyncError(async (req, res, next) => {
   }
 
   // remarks required for reject
-  // if (action === "REJECT" && !remarks) {
-  //   return next(new ErrorHandler("Remarks is required for rejection", 400));
-  // }
-
-  if (!remarks) {
-    return next(new ErrorHandler("Remarks is required", 400));
+  if (action === "REJECT" && !remarks) {
+    return next(new ErrorHandler("Remarks is required for rejection", 400));
   }
 
   // find application
@@ -395,8 +391,7 @@ exports.reviewApplication = catchAsyncError(async (req, res, next) => {
   latest.status = action === "APPROVE" ? "APPROVED" : "REJECTED";
 
   // save remarks for reject
-  // latest.remarks = action === "REJECT" ? remarks : null;
-  latest.remarks = remarks;
+  latest.remarks = action === "REJECT" ? remarks : null;
 
   // save review details
   latest.reviewedAt = new Date();
