@@ -35,6 +35,7 @@ exports.createAppointment = catchAsyncError(async (req, res, next) => {
   // check active slot timing
   const slotTiming = await SlotTiming.findOne({
     isActive: true,
+    isDeleted: false,
   });
 
   if (!slotTiming) {
@@ -111,6 +112,7 @@ exports.getAppointments = catchAsyncError(async (req, res, next) => {
 
   const slotTiming = await SlotTiming.findOne({
     isActive: true,
+    isDeleted: false,
   });
 
   const formattedAppointments = appointments.map((item) => ({
@@ -141,6 +143,7 @@ exports.getSingleAppointment = catchAsyncError(async (req, res, next) => {
 
   const slotTiming = await SlotTiming.findOne({
     isActive: true,
+    isDeleted: false,
   });
 
   res.status(200).json({
@@ -240,6 +243,7 @@ exports.rescheduleAppointment = catchAsyncError(async (req, res, next) => {
 
   const slotTiming = await SlotTiming.findOne({
     isActive: true,
+    isDeleted: false,
   });
 
   res.status(201).json({
@@ -270,6 +274,7 @@ exports.getAvailableSlots = catchAsyncError(async (req, res, next) => {
 
   const slotTiming = await SlotTiming.findOne({
     isActive: true,
+    isDeleted: false,
   });
 
   if (!slotTiming) {
@@ -356,6 +361,7 @@ exports.createInspectionAppointment = catchAsyncError(
     // ================= SLOT TIMING =================
     const slotTiming = await SlotTiming.findOne({
       isActive: true,
+      isDeleted: false,
     });
 
     if (!slotTiming) {
@@ -438,6 +444,7 @@ exports.rescheduleInspectionAppointment = catchAsyncError(
     // ================= SLOT TIMING =================
     const slotTiming = await SlotTiming.findOne({
       isActive: true,
+      isDeleted: false,
     });
 
     if (!slotTiming) {
@@ -613,5 +620,34 @@ exports.getReviewerList = catchAsyncError(async (req, res, next) => {
       page,
       pages: Math.ceil(total / limit),
     },
+  });
+});
+
+exports.completeAppointment = catchAsyncError(async (req, res, next) => {
+  const appointment = await Appointment.findById(req.params.appointmentId);
+
+  if (!appointment) {
+    return next(new ErrorHandler("Appointment not found", 404));
+  }
+
+  if (appointment.status === "COMPLETED") {
+    return next(new ErrorHandler("Appointment already completed", 400));
+  }
+
+  if (appointment.status === "CANCELLED") {
+    return next(
+      new ErrorHandler("Cancelled appointment cannot be completed", 400),
+    );
+  }
+
+  appointment.status = "COMPLETED";
+  appointment.completedAt = new Date();
+
+  await appointment.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Appointment completed successfully",
+    data: appointment,
   });
 });

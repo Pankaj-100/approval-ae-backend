@@ -57,6 +57,11 @@ const appointmentSchema = new mongoose.Schema(
       default: "SCHEDULED",
     },
 
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+
     scheduledBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

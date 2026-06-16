@@ -25,6 +25,7 @@ exports.blockReviewerSlots = catchAsyncError(async (req, res, next) => {
   // ================= GET ACTIVE SLOT CONFIG =================
   const slotTiming = await SlotTiming.findOne({
     isActive: true,
+    isDeleted: false,
   });
 
   if (!slotTiming) {
@@ -131,6 +132,7 @@ exports.getReviewerBlockedSlots = catchAsyncError(async (req, res, next) => {
 
   const slotTiming = await SlotTiming.findOne({
     isActive: true,
+    isDeleted: false,
   });
 
   const formattedSlots = blockedDate.slots.map((slot) =>
@@ -162,6 +164,7 @@ exports.getAvailableSlots = catchAsyncError(async (req, res, next) => {
   // ================= GET ACTIVE SLOT CONFIG =================
   const slotTiming = await SlotTiming.findOne({
     isActive: true,
+    isDeleted: false,
   });
 
   if (!slotTiming) {
