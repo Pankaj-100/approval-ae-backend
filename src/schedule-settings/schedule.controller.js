@@ -7,6 +7,23 @@ const { formatSlotRange } = require("../../utils/slotHelper");
 const User = require("../modules/user/user.model");
 const Role = require("../modules/role/role.model");
 
+const isAppointmentActive = (appointment) => {
+  const appointmentDateTime = new Date(appointment.appointmentDate);
+
+  const [time, meridiem] = appointment.appointmentSlot.split(" ");
+  let [hours, minutes] = time.split(":").map(Number);
+
+  if (meridiem === "PM" && hours !== 12) hours += 12;
+  if (meridiem === "AM" && hours === 12) hours = 0;
+
+  appointmentDateTime.setHours(hours, minutes, 0, 0);
+
+  const unlockTime = new Date(appointmentDateTime);
+  unlockTime.setTime(unlockTime.getTime() + 24 * 60 * 60 * 1000);
+
+  return unlockTime > new Date();
+};
+
 // ================= CREATE APPOINTMENT =================
 exports.createAppointment = catchAsyncError(async (req, res, next) => {
   const {
@@ -47,25 +64,42 @@ exports.createAppointment = catchAsyncError(async (req, res, next) => {
     return next(new ErrorHandler("Invalid appointment slot", 400));
   }
 
-  // reviewer blocked slot check
   const reviewerSlot = await ReviewerSlot.findOne({
     reviewerId,
-    date: appointmentDate,
   });
 
-  if (reviewerSlot && reviewerSlot.blockedSlots.includes(appointmentSlot)) {
-    return next(new ErrorHandler("Selected slot is blocked", 400));
+  if (reviewerSlot) {
+    const blockedDate = reviewerSlot.blockedDates.find(
+      (item) =>
+        new Date(item.date).toISOString().split("T")[0] ===
+        new Date(appointmentDate).toISOString().split("T")[0],
+    );
+
+    if (blockedDate && blockedDate.slots.includes(appointmentSlot)) {
+      return next(new ErrorHandler("Selected slot is blocked", 400));
+    }
   }
 
   // already booked check
-  const alreadyBooked = await Appointment.findOne({
+  const startOfDay = new Date(appointmentDate);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(appointmentDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const appointments = await Appointment.find({
     reviewerId,
-    appointmentDate,
-    appointmentSlot,
-    status: {
-      $ne: "CANCELLED",
+    appointmentDate: {
+      $gte: startOfDay,
+      $lte: endOfDay,
     },
+    appointmentSlot,
+    status: "SCHEDULED",
   });
+
+  const alreadyBooked = appointments.some((appointment) =>
+    isAppointmentActive(appointment),
+  );
 
   if (alreadyBooked) {
     return next(new ErrorHandler("Slot already booked", 400));
@@ -192,25 +226,46 @@ exports.rescheduleAppointment = catchAsyncError(async (req, res, next) => {
     return next(new ErrorHandler("Appointment not found", 404));
   }
 
-  // blocked slot check
   const reviewerSlot = await ReviewerSlot.findOne({
     reviewerId: oldAppointment.reviewerId,
-    date: appointmentDate,
   });
 
-  if (reviewerSlot && reviewerSlot.blockedSlots.includes(appointmentSlot)) {
-    return next(new ErrorHandler("Selected slot is blocked", 400));
+  if (reviewerSlot) {
+    const blockedDate = reviewerSlot.blockedDates.find(
+      (item) =>
+        new Date(item.date).toISOString().split("T")[0] ===
+        new Date(appointmentDate).toISOString().split("T")[0],
+    );
+
+    if (blockedDate && blockedDate.slots.includes(appointmentSlot)) {
+      return next(new ErrorHandler("Selected slot is blocked", 400));
+    }
   }
 
   // already booked check
-  const alreadyBooked = await Appointment.findOne({
+  const startOfDay = new Date(appointmentDate);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(appointmentDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const appointments = await Appointment.find({
     reviewerId: oldAppointment.reviewerId,
-    appointmentDate,
+    appointmentDate: {
+      $gte: startOfDay,
+      $lte: endOfDay,
+    },
     appointmentSlot,
-    status: {
-      $ne: "CANCELLED",
+    status: "SCHEDULED",
+
+    _id: {
+      $ne: oldAppointment._id,
     },
   });
+
+  const alreadyBooked = appointments.some((appointment) =>
+    isAppointmentActive(appointment),
+  );
 
   if (alreadyBooked) {
     return next(new ErrorHandler("Slot already booked", 400));
@@ -285,23 +340,32 @@ exports.getAvailableSlots = catchAsyncError(async (req, res, next) => {
 
   const reviewerSlot = await ReviewerSlot.findOne({
     reviewerId,
-    date,
   });
 
   // ================= GET ALREADY BOOKED APPOINTMENTS =================
 
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
   const bookedAppointments = await Appointment.find({
     reviewerId,
-    appointmentDate: date,
-
+    appointmentDate: {
+      $gte: startOfDay,
+      $lte: endOfDay,
+    },
     status: {
       $ne: "CANCELLED",
     },
   });
 
-  // convert appointment data into slot array
+  const activeAppointments = bookedAppointments.filter((appointment) =>
+    isAppointmentActive(appointment),
+  );
 
-  const bookedSlots = bookedAppointments.map((item) => item.appointmentSlot);
+  const bookedSlots = activeAppointments.map((item) => item.appointmentSlot);
 
   // ================= START WITH ALL GLOBAL SLOTS =================
 
@@ -310,11 +374,23 @@ exports.getAvailableSlots = catchAsyncError(async (req, res, next) => {
   // ================= REMOVE BLOCKED SLOTS =================
   // Remove reviewer unavailable slots
 
+  let blockedSlots = [];
+
   if (reviewerSlot) {
-    availableSlots = availableSlots.filter(
-      (slot) => !reviewerSlot.blockedSlots.includes(slot),
+    const blockedDate = reviewerSlot.blockedDates.find(
+      (item) =>
+        new Date(item.date).toISOString().split("T")[0] ===
+        new Date(date).toISOString().split("T")[0],
     );
+
+    if (blockedDate) {
+      blockedSlots = blockedDate.slots;
+    }
   }
+
+  availableSlots = availableSlots.filter(
+    (slot) => !blockedSlots.includes(slot),
+  );
 
   // ================= REMOVE BOOKED SLOTS =================
   // Remove already scheduled slots
@@ -374,19 +450,26 @@ exports.createInspectionAppointment = catchAsyncError(
     }
 
     // ================= ALREADY BOOKED CHECK =================
-    const alreadyBooked = await Appointment.findOne({
+    const startOfDay = new Date(appointmentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(appointmentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const appointments = await Appointment.find({
       inspectionDetailId,
-
-      appointmentDate,
-
-      appointmentSlot,
-
-      appointmentType: "INSPECTION",
-
-      status: {
-        $ne: "CANCELLED",
+      appointmentDate: {
+        $gte: startOfDay,
+        $lte: endOfDay,
       },
+      appointmentSlot,
+      appointmentType: "INSPECTION",
+      status: "SCHEDULED",
     });
+
+    const alreadyBooked = appointments.some((appointment) =>
+      isAppointmentActive(appointment),
+    );
 
     if (alreadyBooked) {
       return next(new ErrorHandler("Slot already booked", 400));
@@ -457,19 +540,30 @@ exports.rescheduleInspectionAppointment = catchAsyncError(
     }
 
     // ================= CHECK BOOKED SLOT =================
-    const alreadyBooked = await Appointment.findOne({
+    const startOfDay = new Date(appointmentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(appointmentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const appointments = await Appointment.find({
       inspectionDetailId: oldAppointment.inspectionDetailId,
-
-      appointmentDate,
-
+      appointmentDate: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
       appointmentSlot,
-
       appointmentType: "INSPECTION",
+      status: "SCHEDULED",
 
-      status: {
-        $ne: "CANCELLED",
+      _id: {
+        $ne: oldAppointment._id,
       },
     });
+
+    const alreadyBooked = appointments.some((appointment) =>
+      isAppointmentActive(appointment),
+    );
 
     if (alreadyBooked) {
       return next(new ErrorHandler("Slot already booked", 400));
@@ -620,34 +714,5 @@ exports.getReviewerList = catchAsyncError(async (req, res, next) => {
       page,
       pages: Math.ceil(total / limit),
     },
-  });
-});
-
-exports.completeAppointment = catchAsyncError(async (req, res, next) => {
-  const appointment = await Appointment.findById(req.params.appointmentId);
-
-  if (!appointment) {
-    return next(new ErrorHandler("Appointment not found", 404));
-  }
-
-  if (appointment.status === "COMPLETED") {
-    return next(new ErrorHandler("Appointment already completed", 400));
-  }
-
-  if (appointment.status === "CANCELLED") {
-    return next(
-      new ErrorHandler("Cancelled appointment cannot be completed", 400),
-    );
-  }
-
-  appointment.status = "COMPLETED";
-  appointment.completedAt = new Date();
-
-  await appointment.save();
-
-  res.status(200).json({
-    success: true,
-    message: "Appointment completed successfully",
-    data: appointment,
   });
 });

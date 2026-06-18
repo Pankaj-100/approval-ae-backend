@@ -60,27 +60,25 @@ exports.createSlotTiming = catchAsyncError(async (req, res, next) => {
       },
     });
 
-    const now = new Date();
-
     for (const appointment of appointments) {
       if (appointment.status === "SCHEDULED") {
-        return next(
-          new ErrorHandler(
-            `Slot ${appointment.appointmentSlot} cannot be removed because appointments are scheduled`,
-            400,
-          ),
-        );
-      }
+        const appointmentDateTime = new Date(appointment.appointmentDate);
 
-      if (appointment.status === "COMPLETED" && appointment.completedAt) {
-        const unlockTime = new Date(appointment.completedAt);
+        const [time, meridiem] = appointment.appointmentSlot.split(" ");
+        let [hours, minutes] = time.split(":").map(Number);
 
+        if (meridiem === "PM" && hours !== 12) hours += 12;
+        if (meridiem === "AM" && hours === 12) hours = 0;
+
+        appointmentDateTime.setHours(hours, minutes, 0, 0);
+
+        const unlockTime = new Date(appointmentDateTime);
         unlockTime.setHours(unlockTime.getHours() + 24);
 
-        if (unlockTime > now) {
+        if (unlockTime > new Date()) {
           return next(
             new ErrorHandler(
-              `Slot ${appointment.appointmentSlot} cannot be removed because appointment completed less than 24 hours ago`,
+              `Slot ${appointment.appointmentSlot} cannot be removed because appointment is still within 24 hours`,
               400,
             ),
           );
@@ -156,29 +154,25 @@ exports.removeSlot = catchAsyncError(async (req, res, next) => {
     },
   });
 
-  const now = new Date();
-
   for (const appointment of appointments) {
-    // scheduled appointment
     if (appointment.status === "SCHEDULED") {
-      return next(
-        new ErrorHandler(
-          `Slot ${slot} cannot be removed because appointments are scheduled`,
-          400,
-        ),
-      );
-    }
+      const appointmentDateTime = new Date(appointment.appointmentDate);
 
-    // completed within 24 hours
-    if (appointment.status === "COMPLETED" && appointment.completedAt) {
-      const unlockTime = new Date(appointment.completedAt);
+      const [time, meridiem] = appointment.appointmentSlot.split(" ");
+      let [hours, minutes] = time.split(":").map(Number);
 
+      if (meridiem === "PM" && hours !== 12) hours += 12;
+      if (meridiem === "AM" && hours === 12) hours = 0;
+
+      appointmentDateTime.setHours(hours, minutes, 0, 0);
+
+      const unlockTime = new Date(appointmentDateTime);
       unlockTime.setHours(unlockTime.getHours() + 24);
 
-      if (unlockTime > now) {
+      if (unlockTime > new Date()) {
         return next(
           new ErrorHandler(
-            `Slot ${slot} cannot be removed because appointment completed less than 24 hours ago`,
+            `Slot ${slot} cannot be removed because appointment is still within 24 hours`,
             400,
           ),
         );
