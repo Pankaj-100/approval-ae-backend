@@ -25,6 +25,8 @@ const {
   getFinalCompletion,
   getContractorUsers,
   getBuildingDocuments,
+  getProjectByBuildingId,
+  getApplicationFullDetails,
 } = require("./plot.controller");
 const { upload } = require("../../utils/s3");
 const { auth } = require("../../middleware/auth");
@@ -56,6 +58,8 @@ route.get("/final-completion/:applicationId", getFinalCompletion);
 route.post("/reset-application-units", resetApplicationUnits);
 route.get("/contractors", getContractorUsers);
 route.put("/change-contractor", changeApplicationContractor);
+route.get("/building-details/:buildingId", getProjectByBuildingId);
+route.get("/application-details/:applicationId", getApplicationFullDetails);
 route.get("/:id", getPlotById);
 route.delete("/:id", deletePlot);
 route.put("/:id", updatePlot);

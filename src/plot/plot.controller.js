@@ -1068,45 +1068,44 @@ exports.getFloorDocuments = catchAsync(async (req, res, next) => {
 exports.getApplicationDocuments = catchAsync(async (req, res, next) => {
   const { applicationId } = req.params;
 
-  // CHECK APPLICATION
   const application = await ContractorApplication.findOne({
     _id: applicationId,
     isDeleted: false,
-  }).lean();
+  })
+    .populate("versions.reviewedBy", "name email")
+    .lean();
 
-  // APPLICATION NOT FOUND
   if (!application) {
     return next(new ErrorHandler("Application not found", 404));
   }
 
-  // GET CURRENT VERSION
-  // const currentVersion = application.versions.find(
-  //   (v) => v.versionNumber === application.currentVersion,
-  // );
+  const currentVersion = application.versions.find(
+    (v) => v.versionNumber === application.currentVersion,
+  );
 
-  // VERSION NOT FOUND
-  // if (!currentVersion) {
-  //   return next(new ErrorHandler("Version not found", 404));
-  // }
+  if (!currentVersion) {
+    return next(new ErrorHandler("Current version not found", 404));
+  }
 
-  // RESPONSE
   res.status(200).json({
     success: true,
     message: "Application documents fetched successfully",
-    // data: {
-    //   applicationId: application._id,
-    //   referenceNumber: application.referenceNumber,
-    //   currentVersion: application.currentVersion,
+    data: {
+      applicationId: application._id,
+      referenceNumber: application.referenceNumber,
+      currentVersion: application.currentVersion,
 
-    //   documents: {
-    //     ejariDocument: currentVersion.documents?.ejariDocument || [],
+      status: currentVersion.status,
+      remarks: currentVersion.remarks,
+      reviewedBy: currentVersion.reviewedBy,
+      reviewedAt: currentVersion.reviewedAt,
 
-    //     appointmentLetter: currentVersion.documents?.appointmentLetter || [],
-
-    //     fitOutDrawings: currentVersion.documents?.fitOutDrawings || [],
-    //   },
-    // },
-    data: application,
+      documents: {
+        ejariDocument: currentVersion.documents?.ejariDocument || [],
+        appointmentLetter: currentVersion.documents?.appointmentLetter || [],
+        fitOutDrawings: currentVersion.documents?.fitOutDrawings || [],
+      },
+    },
   });
 });
 
@@ -1565,6 +1564,127 @@ exports.getContractorUsers = catchAsync(async (req, res, next) => {
       total,
       page,
       pages: Math.ceil(total / limit),
+    },
+  });
+});
+
+exports.getProjectByBuildingId = catchAsync(async (req, res, next) => {
+  const { buildingId } = req.params;
+
+  const building = await BuildingDetails.findOne({
+    _id: buildingId,
+    isDeleted: false,
+  })
+    .populate({
+      path: "plotId",
+      select: "plotNumber landlordId",
+      populate: {
+        path: "landlordId",
+        select: "name email mobile_number",
+      },
+    })
+    .lean();
+
+  if (!building) {
+    return next(new ErrorHandler("Building not found", 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      buildingId: building._id,
+      buildingName: building.buildingName,
+      plotNumber: building.plotId?.plotNumber || null,
+      buildingSqft: building.buildingSqft,
+      projectCreatedDate: building.createdAt,
+
+      landlord: {
+        name: building.plotId?.landlordId?.name || null,
+        email: building.plotId?.landlordId?.email || null,
+        mobileNumber: building.plotId?.landlordId?.mobile_number || null,
+      },
+    },
+  });
+});
+
+exports.getApplicationFullDetails = catchAsync(async (req, res, next) => {
+  const { applicationId } = req.params;
+
+  const application = await ContractorApplication.findOne({
+    _id: applicationId,
+    isDeleted: false,
+  })
+    .populate("contractorId", "name email mobile_number")
+    .populate("assignedTo", "name email");
+
+  if (!application) {
+    return next(new ErrorHandler("Application not found", 404));
+  }
+
+  const latestVersion = application.versions.find(
+    (v) => v.versionNumber === application.currentVersion,
+  );
+
+  const [drawingSubmission, workPermit, inspectionDetail] = await Promise.all([
+    DrawingSubmission.findOne({
+      contractorApplicationId: application._id,
+      isDeleted: false,
+    }),
+
+    WorkPermit.findOne({
+      contractorApplicationId: application._id,
+      isDeleted: false,
+    }),
+
+    InspectionDetail.findOne({
+      contractorApplicationId: application._id,
+      isDeleted: false,
+    }),
+  ]);
+
+  res.status(200).json({
+    success: true,
+    message: "Application details fetched successfully",
+
+    data: {
+      application: {
+        _id: application._id,
+        referenceNumber: application.referenceNumber,
+
+        plotId: application.plotId,
+        buildingId: application.buildingId,
+        floorId: application.floorId,
+        unitId: application.unitId,
+
+        plotNumber: application.plotNumber,
+        buildingName: application.buildingName,
+        floorNumber: application.floorNumber,
+
+        displayUnit: application.displayUnit,
+        unitType: application.unitType,
+
+        contractor: application.contractorId,
+        assignedTo: application.assignedTo,
+
+        jobStatus: application.jobStatus,
+        approvalStatus: application.approvalStatus,
+
+        currentVersion: application.currentVersion,
+
+        latestVersion,
+
+        nocDoc: application.nocDoc,
+        finalCompletionDocument: application.finalCompletionDocument,
+
+        createdAt: application.createdAt,
+        updatedAt: application.updatedAt,
+      },
+
+      drawingSubmission,
+
+      workPermit,
+
+      inspectionDetail,
     },
   });
 });
