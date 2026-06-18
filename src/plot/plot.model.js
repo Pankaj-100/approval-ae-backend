@@ -13,29 +13,6 @@ const plotDetailsSchema = new mongoose.Schema(
       required: true,
     },
 
-    documents: {
-      siteAffectionPlan: {
-        type: String,
-        default: null,
-      },
-      dmCompletionCertificate: {
-        type: String,
-        default: null,
-      },
-      civilDefenseCertificate: {
-        type: String,
-        default: null,
-      },
-      amcContract: {
-        type: String,
-        default: null,
-      },
-      dewaApprovedLoadSchedule: {
-        type: String,
-        default: null,
-      },
-    },
-
     isActive: {
       type: Boolean,
       default: true,

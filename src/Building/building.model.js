@@ -23,6 +23,105 @@ const buildingSchema = new mongoose.Schema(
       required: true,
     },
 
+    documents: {
+      siteAffectionPlan: {
+        url: {
+          type: String,
+          default: null,
+        },
+        fileName: {
+          type: String,
+          default: null,
+        },
+        fileSize: {
+          type: Number,
+          default: null,
+        },
+
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+
+      dmCompletionCertificate: {
+        url: {
+          type: String,
+          default: null,
+        },
+        fileName: {
+          type: String,
+          default: null,
+        },
+        fileSize: {
+          type: Number,
+          default: null,
+        },
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+
+      civilDefenseCertificate: {
+        url: {
+          type: String,
+          default: null,
+        },
+        fileName: {
+          type: String,
+          default: null,
+        },
+        fileSize: {
+          type: Number,
+          default: null,
+        },
+
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+
+      amcContract: {
+        url: {
+          type: String,
+          default: null,
+        },
+        fileName: {
+          type: String,
+          default: null,
+        },
+        fileSize: {
+          type: Number,
+          default: null,
+        },
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+
+      dewaApprovedLoadSchedule: {
+        url: {
+          type: String,
+          default: null,
+        },
+        fileName: {
+          type: String,
+          default: null,
+        },
+        fileSize: {
+          type: Number,
+          default: null,
+        },
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    },
+
     isActive: {
       type: Boolean,
       default: true,

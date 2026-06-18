@@ -257,20 +257,46 @@ exports.createProject = catchAsync(async (req, res, next) => {
     });
   }
 
-  //CREATE PLOT
-  const createdPlot = await PlotDetails.create({
-    landlordId: finalLandlord._id,
+  // FIND EXISTING PLOT
+  let createdPlot = await PlotDetails.findOne({
     plotNumber: plot.plotNumber,
-
-    documents: {
-      siteAffectionPlan: plot?.documents?.siteAffectionPlan || null,
-      dmCompletionCertificate: plot?.documents?.dmCompletionCertificate || null,
-      civilDefenseCertificate: plot?.documents?.civilDefenseCertificate || null,
-      amcContract: plot?.documents?.amcContract || null,
-      dewaApprovedLoadSchedule:
-        plot?.documents?.dewaApprovedLoadSchedule || null,
-    },
+    isDeleted: false,
   });
+
+  if (
+    createdPlot &&
+    createdPlot.landlordId.toString() !== finalLandlord._id.toString()
+  ) {
+    return next(
+      new ErrorHandler(
+        `Plot number ${plot.plotNumber} belongs to another landlord`,
+        400,
+      ),
+    );
+  }
+
+  // CREATE PLOT IF NOT EXISTS
+  if (!createdPlot) {
+    createdPlot = await PlotDetails.create({
+      landlordId: finalLandlord._id,
+      plotNumber: plot.plotNumber,
+    });
+  }
+
+  const existingBuilding = await BuildingDetails.findOne({
+    plotId: createdPlot._id,
+    buildingName: building.buildingName,
+    isDeleted: false,
+  });
+
+  if (existingBuilding) {
+    return next(
+      new ErrorHandler(
+        `Building ${building.buildingName} already exists in this plot`,
+        400,
+      ),
+    );
+  }
 
   //CREATE BUILDING
   const newBuilding = await BuildingDetails.create({
@@ -278,6 +304,44 @@ exports.createProject = catchAsync(async (req, res, next) => {
     buildingName: building.buildingName,
     buildingSqft: building.buildingSqft,
     buildingUsage: building.buildingUsage,
+
+    documents: {
+      siteAffectionPlan: {
+        url: building?.documents?.siteAffectionPlan?.url || null,
+        fileName: building?.documents?.siteAffectionPlan?.fileName || null,
+        fileSize: building?.documents?.siteAffectionPlan?.fileSize || null,
+      },
+
+      dmCompletionCertificate: {
+        url: building?.documents?.dmCompletionCertificate?.url || null,
+        fileName:
+          building?.documents?.dmCompletionCertificate?.fileName || null,
+        fileSize:
+          building?.documents?.dmCompletionCertificate?.fileSize || null,
+      },
+
+      civilDefenseCertificate: {
+        url: building?.documents?.civilDefenseCertificate?.url || null,
+        fileName:
+          building?.documents?.civilDefenseCertificate?.fileName || null,
+        fileSize:
+          building?.documents?.civilDefenseCertificate?.fileSize || null,
+      },
+
+      amcContract: {
+        url: building?.documents?.amcContract?.url || null,
+        fileName: building?.documents?.amcContract?.fileName || null,
+        fileSize: building?.documents?.amcContract?.fileSize || null,
+      },
+
+      dewaApprovedLoadSchedule: {
+        url: building?.documents?.dewaApprovedLoadSchedule?.url || null,
+        fileName:
+          building?.documents?.dewaApprovedLoadSchedule?.fileName || null,
+        fileSize:
+          building?.documents?.dewaApprovedLoadSchedule?.fileSize || null,
+      },
+    },
   });
 
   let allFloors = [];
@@ -924,32 +988,29 @@ exports.getProjectDetails = catchAsync(async (req, res, next) => {
   });
 });
 
-// ================= GET PLOT DOCUMENTS =================
+// ================= GET BUILDING DOCUMENTS =================
 
-exports.getPlotDocuments = catchAsync(async (req, res, next) => {
-  const { plotId } = req.params;
+exports.getBuildingDocuments = catchAsync(async (req, res, next) => {
+  const { buildingId } = req.params;
 
-  // CHECK PLOT
-  const plot = await PlotDetails.findOne({
-    _id: plotId,
+  // CHECK BUILDING
+  const building = await BuildingDetails.findOne({
+    _id: buildingId,
     isDeleted: false,
-  }).lean();
+  })
+    .select("buildingName documents")
+    .lean();
 
-  // PLOT NOT FOUND
-  if (!plot) {
-    return next(new ErrorHandler("Plot not found", 404));
+  // BUILDING NOT FOUND
+  if (!building) {
+    return next(new ErrorHandler("Building not found", 404));
   }
 
   // RESPONSE
   res.status(200).json({
     success: true,
-    message: "Plot documents fetched successfully",
-    // data: {
-    //   plotId: plot._id,
-    //   plotNumber: plot.plotNumber,
-    //   documents: plot.documents,
-    // },
-    data: plot,
+    message: "Building documents fetched successfully",
+    data: building,
   });
 });
 
@@ -1073,7 +1134,15 @@ exports.getUnitUsers = catchAsync(async (req, res, next) => {
       { unitId: unitId },
       { "versions.redesign.inputUnits.unitId": unitId },
     ],
-  }).populate("contractorId", "name email");
+  })
+    .populate("contractorId", "name email")
+    .populate({
+      path: "plotId",
+      populate: {
+        path: "landlordId",
+        select: "name email",
+      },
+    });
 
   // APPLICATION NOT FOUND
   if (!application) {
@@ -1154,6 +1223,14 @@ exports.getUnitUsers = catchAsync(async (req, res, next) => {
     });
   }
 
+  // ADD LANDLORD
+  if (application.plotId?.landlordId) {
+    users.push({
+      role: "LANDLORD",
+      user: application.plotId.landlordId,
+    });
+  }
+
   // ================= DRAWING REVIEWERS =================
 
   const drawingTypes = ["architectural", "mep", "structural"];
@@ -1210,13 +1287,17 @@ exports.getUnitUsers = catchAsync(async (req, res, next) => {
     }
   }
 
-  // REMOVE DUPLICATE USERS
   const uniqueUsers = users.filter(
     (value, index, self) =>
+      value.user &&
       index ===
-      self.findIndex(
-        (t) => t.user?._id.toString() === value.user?._id.toString(),
-      ),
+        self.findIndex(
+          (t) =>
+            t.user &&
+            t.user._id.toString() === value.user._id.toString() &&
+            t.role === value.role &&
+            t.department === value.department,
+        ),
   );
 
   // RESPONSE
