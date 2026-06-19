@@ -13,6 +13,8 @@ exports.s3Uploadv2 = async (file) => {
     Bucket: process.env.AWS_BUCKET_NAME,
     Key: `uploads/${Date.now().toString()}-${file.originalname}`,
     Body: file.buffer,
+    ContentType: file.mimetype,
+    ContentDisposition: "inline",
   };
 
   return await s3.upload(param).promise();

@@ -317,7 +317,7 @@ exports.login = catchAsync(async (req, res, next) => {
     isDeleted: false,
   }).select("+password");
 
-  if (!user) return next(new ErrorHandler("Invalid credentials", 401));
+  if (!user) return next(new ErrorHandler("Email not registered", 401));
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) return next(new ErrorHandler("Invalid credentials", 401));

@@ -621,16 +621,57 @@ exports.reviewDrawingFile = catchAsyncError(async (req, res, next) => {
 
   await submission.save();
 
+  // const sections = ["architectural", "mep", "structural"];
+  // const types = ["autoCad", "dwf"];
+
+  // let allApproved = true;
+
+  // for (let sec of sections) {
+  //   for (let t of types) {
+  //     const files = submission[sec]?.[t] || [];
+
+  //     if (files.length === 0) {
+  //       allApproved = false;
+  //       break;
+  //     }
+
+  //     const latest = files.find((f) => f.isLatest) || files[files.length - 1];
+
+  //     if (!latest || latest.status !== "APPROVED") {
+  //       allApproved = false;
+  //       break;
+  //     }
+  //   }
+  // }
   const sections = ["architectural", "mep", "structural"];
   const types = ["autoCad", "dwf"];
+
+  const optionalFiles = [
+    {
+      section: "structural",
+      type: "autoCad",
+    },
+    {
+      section: "structural",
+      type: "dwf",
+    },
+  ];
 
   let allApproved = true;
 
   for (let sec of sections) {
     for (let t of types) {
+      const isOptional = optionalFiles.some(
+        (item) => item.section === sec && item.type === t,
+      );
+
       const files = submission[sec]?.[t] || [];
 
       if (files.length === 0) {
+        if (isOptional) {
+          continue;
+        }
+
         allApproved = false;
         break;
       }
@@ -642,6 +683,8 @@ exports.reviewDrawingFile = catchAsyncError(async (req, res, next) => {
         break;
       }
     }
+
+    if (!allApproved) break;
   }
 
   // UPDATE JOB STATUS
@@ -835,17 +878,40 @@ exports.reviewWorkPermitFile = catchAsyncError(async (req, res, next) => {
   await submission.save();
 
   // CHECK ALL APPROVED → MOVE TO INSPECTION
-  const allDocs = Object.values(submission.documents);
+  // const allDocs = Object.values(submission.documents);
+
+  // let allApproved = true;
+
+  // for (let arr of allDocs) {
+  //   if (!arr.length) {
+  //     allApproved = false;
+  //     break;
+  //   }
+
+  //   const latest = arr.find((f) => f.isLatest) || arr[arr.length - 1];
+
+  //   if (!latest || latest.status !== "APPROVED") {
+  //     allApproved = false;
+  //     break;
+  //   }
+  // }
+  const optionalDocs = ["dcd", "dewaApproval", "securityCheque"];
 
   let allApproved = true;
 
-  for (let arr of allDocs) {
-    if (!arr.length) {
+  for (const [docType, files] of Object.entries(submission.documents)) {
+    const isOptional = optionalDocs.includes(docType);
+
+    if (!files.length) {
+      if (isOptional) {
+        continue;
+      }
+
       allApproved = false;
       break;
     }
 
-    const latest = arr.find((f) => f.isLatest) || arr[arr.length - 1];
+    const latest = files.find((f) => f.isLatest) || files[files.length - 1];
 
     if (!latest || latest.status !== "APPROVED") {
       allApproved = false;
@@ -1094,17 +1160,42 @@ exports.reviewInspectionFile = catchAsyncError(async (req, res, next) => {
   await inspection.save();
 
   // ================= CHECK ALL APPROVED =================
-  const allDocs = Object.values(inspection.documents);
+  // const allDocs = Object.values(inspection.documents);
+
+  // let allApproved = true;
+
+  // for (let arr of allDocs) {
+  //   if (!arr.length) {
+  //     allApproved = false;
+  //     break;
+  //   }
+
+  //   const latest = arr.find((f) => f.isLatest) || arr[arr.length - 1];
+
+  //   if (!latest || latest.status !== "APPROVED") {
+  //     allApproved = false;
+  //     break;
+  //   }
+  // }
+
+  // ================= CHECK ALL APPROVED =================
+  const optionalDocs = ["revisedAuthorityDrawings"];
 
   let allApproved = true;
 
-  for (let arr of allDocs) {
-    if (!arr.length) {
+  for (const [docType, files] of Object.entries(inspection.documents)) {
+    const isOptional = optionalDocs.includes(docType);
+
+    if (!files.length) {
+      if (isOptional) {
+        continue;
+      }
+
       allApproved = false;
       break;
     }
 
-    const latest = arr.find((f) => f.isLatest) || arr[arr.length - 1];
+    const latest = files.find((f) => f.isLatest) || files[files.length - 1];
 
     if (!latest || latest.status !== "APPROVED") {
       allApproved = false;

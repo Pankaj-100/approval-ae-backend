@@ -109,7 +109,7 @@ exports.getUnitsByFloorId = catchAsync(async (req, res, next) => {
     floorId,
     isDeleted: false,
     status: "AVAILABLE",
-  }).select("_id unitId usageType tenantName totalSqm status");
+  }).select("_id unitId usageType tenantName totalSqm status fitOutWork");
 
   // check empty
   if (!units || units.length === 0) {
