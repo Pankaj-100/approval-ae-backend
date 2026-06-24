@@ -1408,6 +1408,7 @@ exports.getFinalCompletion = catchAsync(async (req, res, next) => {
 });
 
 exports.resetApplicationUnits = catchAsync(async (req, res, next) => {
+  
   const { applicationId } = req.body;
 
   if (!applicationId) {
