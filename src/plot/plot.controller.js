@@ -1438,21 +1438,25 @@ exports.resetApplicationUnits = catchAsync(async (req, res, next) => {
     }
 
     // ================= REDESIGN UNIT =================
-    if (application.unitType === "Redesign Unit") {
-      const resultUnits = latestVersion?.redesign?.resultUnits || [];
 
-      for (const resultUnit of resultUnits) {
+    if (application.unitType === "Redesign Unit") {
+      const inputUnits = latestVersion?.redesign?.inputUnits || [];
+
+      for (const inputUnit of inputUnits) {
         await Unit.findByIdAndUpdate(
-          resultUnit.unitId,
+          inputUnit.unitId,
           {
             status: "AVAILABLE",
-            availableSqm: resultUnit.area,
+            availableSqm: inputUnit.area,
             usedSqm: 0,
           },
           { session },
         );
       }
     }
+
+    application.isDeleted = true;
+    await application.save({ session });
   });
 
   res.status(200).json({
