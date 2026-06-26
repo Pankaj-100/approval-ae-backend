@@ -43,6 +43,7 @@ exports.submitInspection = catchAsync(async (req, res, next) => {
 
   let doc = await InspectionDetail.findOne({
     contractorApplicationId,
+    inspectionType,
     isDeleted: false,
   });
 
@@ -103,6 +104,7 @@ exports.submitInspection = catchAsync(async (req, res, next) => {
   res.status(200).json({
     success: true,
     message: "Inspection document submitted",
+    submissionid: doc._id,
     data: newVersion,
   });
 });
@@ -137,11 +139,12 @@ exports.submitInspection = catchAsync(async (req, res, next) => {
 // ================= GET ALL INSPECTION DOCUMENTS =================
 
 exports.getAllInspection = catchAsync(async (req, res, next) => {
-  const { contractorApplicationId } = req.query;
+  const { contractorApplicationId, inspectionType } = req.query;
 
   // FIND INSPECTION DOCUMENT
   const doc = await InspectionDetail.findOne({
     contractorApplicationId,
+    inspectionType,
     isDeleted: false,
   })
 
@@ -226,6 +229,7 @@ exports.getAllInspection = catchAsync(async (req, res, next) => {
 exports.reviewInspection = catchAsync(async (req, res, next) => {
   const {
     contractorApplicationId,
+    inspectionType,
     documentType,
     versionNumber,
     status,
@@ -238,6 +242,7 @@ exports.reviewInspection = catchAsync(async (req, res, next) => {
 
   const doc = await InspectionDetail.findOne({
     contractorApplicationId,
+    inspectionType,
     isDeleted: false,
   });
 
@@ -271,10 +276,11 @@ exports.reviewInspection = catchAsync(async (req, res, next) => {
 
 //Get Versions
 exports.getInspectionVersions = catchAsync(async (req, res, next) => {
-  const { contractorApplicationId, documentType } = req.query;
+  const { contractorApplicationId, inspectionType, documentType } = req.query;
 
   const doc = await InspectionDetail.findOne({
     contractorApplicationId,
+    inspectionType,
     isDeleted: false,
   });
 
@@ -293,10 +299,17 @@ exports.getInspectionVersions = catchAsync(async (req, res, next) => {
 
 //Reupload (ONLY if rejected + NOT approved)
 exports.reuploadInspection = catchAsync(async (req, res, next) => {
-  const { contractorApplicationId, documentType, fileUrl, fileName } = req.body;
+  const {
+    contractorApplicationId,
+    inspectionType,
+    documentType,
+    fileUrl,
+    fileName,
+  } = req.body;
 
   const doc = await InspectionDetail.findOne({
     contractorApplicationId,
+    inspectionType,
     isDeleted: false,
   });
 

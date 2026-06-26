@@ -102,9 +102,20 @@ const inspectionDetailSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// inspectionDetailSchema.index(
+//   { contractorApplicationId: 1 },
+//   { unique: true, partialFilterExpression: { isDeleted: false } },
+// );
+
 inspectionDetailSchema.index(
-  { contractorApplicationId: 1 },
-  { unique: true, partialFilterExpression: { isDeleted: false } },
+  {
+    contractorApplicationId: 1,
+    inspectionType: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: { isDeleted: false },
+  },
 );
 
 module.exports = mongoose.model("InspectionDetail", inspectionDetailSchema);
