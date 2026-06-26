@@ -77,12 +77,12 @@ exports.submitInspection = catchAsync(async (req, res, next) => {
 
   const files = doc.documents[documentType];
 
-  // const latest = files.find((f) => f.isLatest);
+  const latest = files.find((f) => f.isLatest);
 
   //Approved lock
-  // if (latest && latest.status === "APPROVED") {
-  //   return next(new ErrorHandler("Approved document cannot be modified", 400));
-  // }
+  if (latest && latest.status === "APPROVED") {
+    return next(new ErrorHandler("Approved document cannot be modified", 400));
+  }
 
   // mark old versions
   files.forEach((f) => (f.isLatest = false));
@@ -138,90 +138,158 @@ exports.submitInspection = catchAsync(async (req, res, next) => {
 
 // ================= GET ALL INSPECTION DOCUMENTS =================
 
-exports.getAllInspection = catchAsync(async (req, res, next) => {
-  const { contractorApplicationId, inspectionType } = req.query;
+// exports.getAllInspection = catchAsync(async (req, res, next) => {
+//   const { contractorApplicationId, inspectionType } = req.query;
 
-  // FIND INSPECTION DOCUMENT
-  const doc = await InspectionDetail.findOne({
+//   // FIND INSPECTION DOCUMENT
+//   // const doc = await InspectionDetail.findOne({
+//   //   contractorApplicationId,
+//   //   inspectionType,
+//   //   isDeleted: false,
+//   // })
+
+//   const doc = await InspectionDetail.find({
+//     contractorApplicationId,
+//     isDeleted: false,
+//   })
+
+//     // POPULATE APPROVED BY USER DETAILS
+//     .populate("documents.sitePhoto.approvedBy", "name email")
+
+//     .populate("documents.dcdCompletionCertificate.approvedBy", "name email")
+
+//     .populate("documents.certificate.approvedBy", "name email")
+
+//     .populate("documents.dmCompletionCertificate.approvedBy", "name email")
+
+//     .populate("documents.architecturalAsBuilt.approvedBy", "name email")
+
+//     .populate("documents.mepAsBuilt.approvedBy", "name email")
+
+//     .populate("documents.structuralAsBuilt.approvedBy", "name email")
+
+//     .populate("documents.testCertificates.approvedBy", "name email")
+
+//     .populate("documents.commonAreaDamageClearance.approvedBy", "name email")
+
+//     .populate("documents.revisedAuthorityDrawings.approvedBy", "name email");
+
+//   // CHECK DOCUMENT EXISTS
+//   if (!doc) {
+//     return next(new ErrorHandler("No inspection documents found", 404));
+//   }
+
+//   // GET LATEST FILE VERSION
+//   const getLatest = (arr) => arr?.find((f) => f.isLatest) || null;
+
+//   const result = {};
+
+//   // LOOP ALL DOCUMENT TYPES
+//   for (let key of allowedDocs) {
+//     // GET LATEST DOCUMENT
+//     const latestDoc = getLatest(doc.documents?.[key]);
+
+//     // STORE CLEAN RESPONSE
+//     result[key] = latestDoc
+//       ? {
+//           versionNumber: latestDoc.versionNumber,
+
+//           fileUrl: latestDoc.fileUrl,
+
+//           fileName: latestDoc.fileName,
+
+//           uploadedAt: latestDoc.uploadedAt,
+
+//           status: latestDoc.status,
+
+//           approvedBy: latestDoc.approvedBy || null,
+
+//           approvedAt: latestDoc.approvedAt || null,
+
+//           rejectionReason: latestDoc.rejectionReason || null,
+
+//           rejectionReasonDoc: latestDoc.rejectionReasonDoc || null,
+
+//           appointmentDateTime: latestDoc.appointmentDateTime || null,
+
+//           isLatest: latestDoc.isLatest,
+//         }
+//       : null;
+//   }
+
+//   // RESPONSE
+//   res.status(200).json({
+//     success: true,
+//     data: {
+//       // INSPECTION TYPE
+//       inspectionType: doc.inspectionType,
+
+//       // ALL DOCUMENTS
+//       documents: result,
+//     },
+//   });
+// });
+
+exports.getAllInspection = catchAsync(async (req, res, next) => {
+  const { contractorApplicationId } = req.query;
+
+  if (!contractorApplicationId) {
+    return next(new ErrorHandler("contractorApplicationId is required", 400));
+  }
+
+  const docs = await InspectionDetail.find({
     contractorApplicationId,
-    inspectionType,
     isDeleted: false,
   })
-
-    // POPULATE APPROVED BY USER DETAILS
     .populate("documents.sitePhoto.approvedBy", "name email")
-
     .populate("documents.dcdCompletionCertificate.approvedBy", "name email")
-
     .populate("documents.certificate.approvedBy", "name email")
-
     .populate("documents.dmCompletionCertificate.approvedBy", "name email")
-
     .populate("documents.architecturalAsBuilt.approvedBy", "name email")
-
     .populate("documents.mepAsBuilt.approvedBy", "name email")
-
     .populate("documents.structuralAsBuilt.approvedBy", "name email")
-
     .populate("documents.testCertificates.approvedBy", "name email")
-
     .populate("documents.commonAreaDamageClearance.approvedBy", "name email")
-
     .populate("documents.revisedAuthorityDrawings.approvedBy", "name email");
 
-  // CHECK DOCUMENT EXISTS
-  if (!doc) {
+  if (!docs.length) {
     return next(new ErrorHandler("No inspection documents found", 404));
   }
 
-  // GET LATEST FILE VERSION
   const getLatest = (arr) => arr?.find((f) => f.isLatest) || null;
 
-  const result = {};
+  const response = docs.map((doc) => {
+    const result = {};
 
-  // LOOP ALL DOCUMENT TYPES
-  for (let key of allowedDocs) {
-    // GET LATEST DOCUMENT
-    const latestDoc = getLatest(doc.documents?.[key]);
+    for (let key of allowedDocs) {
+      const latestDoc = getLatest(doc.documents?.[key]);
+      result[key] = latestDoc
+        ? {
+            versionNumber: latestDoc.versionNumber,
+            fileUrl: latestDoc.fileUrl,
+            fileName: latestDoc.fileName,
+            uploadedAt: latestDoc.uploadedAt,
+            status: latestDoc.status,
+            approvedBy: latestDoc.approvedBy || null,
+            approvedAt: latestDoc.approvedAt || null,
+            rejectionReason: latestDoc.rejectionReason || null,
+            rejectionReasonDoc: latestDoc.rejectionReasonDoc || null,
+            appointmentDateTime: latestDoc.appointmentDateTime || null,
+            isLatest: latestDoc.isLatest,
+          }
+        : null;
+    }
 
-    // STORE CLEAN RESPONSE
-    result[key] = latestDoc
-      ? {
-          versionNumber: latestDoc.versionNumber,
+    return {
+      submissionId: doc._id,
+      inspectionType: doc.inspectionType,
+      documents: result,
+    };
+  });
 
-          fileUrl: latestDoc.fileUrl,
-
-          fileName: latestDoc.fileName,
-
-          uploadedAt: latestDoc.uploadedAt,
-
-          status: latestDoc.status,
-
-          approvedBy: latestDoc.approvedBy || null,
-
-          approvedAt: latestDoc.approvedAt || null,
-
-          rejectionReason: latestDoc.rejectionReason || null,
-
-          rejectionReasonDoc: latestDoc.rejectionReasonDoc || null,
-
-          appointmentDateTime: latestDoc.appointmentDateTime || null,
-
-          isLatest: latestDoc.isLatest,
-        }
-      : null;
-  }
-
-  // RESPONSE
   res.status(200).json({
     success: true,
-    data: {
-      // INSPECTION TYPE
-      inspectionType: doc.inspectionType,
-
-      // ALL DOCUMENTS
-      documents: result,
-    },
+    data: response,
   });
 });
 
