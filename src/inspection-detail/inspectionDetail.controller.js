@@ -77,12 +77,12 @@ exports.submitInspection = catchAsync(async (req, res, next) => {
 
   const files = doc.documents[documentType];
 
-  // const latest = files.find((f) => f.isLatest);
+  const latest = files.find((f) => f.isLatest);
 
   //Approved lock
-  // if (latest && latest.status === "APPROVED") {
-  //   return next(new ErrorHandler("Approved document cannot be modified", 400));
-  // }
+  if (latest && latest.status === "APPROVED") {
+    return next(new ErrorHandler("Approved document cannot be modified", 400));
+  }
 
   // mark old versions
   files.forEach((f) => (f.isLatest = false));
@@ -104,7 +104,7 @@ exports.submitInspection = catchAsync(async (req, res, next) => {
   res.status(200).json({
     success: true,
     message: "Inspection document submitted",
-    submissionid: doc._id,
+    submissionId: doc._id,
     data: newVersion,
   });
 });

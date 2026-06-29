@@ -356,9 +356,7 @@ exports.getAvailableSlots = catchAsyncError(async (req, res, next) => {
       $gte: startOfDay,
       $lte: endOfDay,
     },
-    status: {
-      $ne: "CANCELLED",
-    },
+    status: "SCHEDULED",
   });
 
   const activeAppointments = bookedAppointments.filter((appointment) =>

@@ -241,19 +241,33 @@ exports.resubmitApplication = catchAsync(async (req, res, next) => {
     }
 
     // ================= VERSION INCREMENT =================
-    const newVersionNumber = application.currentVersion + 1;
+    // const newVersionNumber = application.currentVersion + 1;
 
     // ================= DOCUMENT MERGE HELPER =================
     // If new file provided → add new version
     // Else → keep previous documents
+    // const mergeDocs = (oldDocs = [], newFile) => {
+    //   if (!newFile) return oldDocs;
+
+    //   return [
+    //     ...oldDocs,
+    //     {
+    //       versionNumber: newVersionNumber,
+    //       fileUrl: newFile,
+    //     },
+    //   ];
+    // };
     const mergeDocs = (oldDocs = [], newFile) => {
       if (!newFile) return oldDocs;
+
+      const lastDocVersion = oldDocs[oldDocs.length - 1];
 
       return [
         ...oldDocs,
         {
-          versionNumber: newVersionNumber,
+          versionNumber: lastDocVersion ? lastDocVersion.versionNumber + 1 : 1,
           fileUrl: newFile,
+          uploadedAt: new Date(),
         },
       ];
     };
@@ -262,55 +276,99 @@ exports.resubmitApplication = catchAsync(async (req, res, next) => {
     // New version is created by merging:
     // New input (req.body)
     // Old version (fallback)
-    const newVersion = {
-      versionNumber: newVersionNumber,
+    // const newVersion = {
+    //   versionNumber: newVersionNumber,
 
-      usageType: usageType ?? lastVersion.usageType,
-      totalUnitAreaSqm: totalUnitAreaSqm ?? lastVersion.totalUnitAreaSqm,
-      areaVariationSqm: areaVariationSqm ?? lastVersion.areaVariationSqm,
+    //   usageType: usageType ?? lastVersion.usageType,
+    //   totalUnitAreaSqm: totalUnitAreaSqm ?? lastVersion.totalUnitAreaSqm,
+    //   areaVariationSqm: areaVariationSqm ?? lastVersion.areaVariationSqm,
 
-      hasMezzanine: hasMezzanine ?? lastVersion.hasMezzanine,
+    //   hasMezzanine: hasMezzanine ?? lastVersion.hasMezzanine,
 
-      totalUnitAreaAfterMezzanineSqm:
-        totalUnitAreaAfterMezzanineSqm ??
-        lastVersion.totalUnitAreaAfterMezzanineSqm,
+    //   totalUnitAreaAfterMezzanineSqm:
+    //     totalUnitAreaAfterMezzanineSqm ??
+    //     lastVersion.totalUnitAreaAfterMezzanineSqm,
 
-      tenantName: tenantName ?? lastVersion.tenantName,
-      tenantMobile: tenantMobile ?? lastVersion.tenantMobile,
-      tenantEmail: tenantEmail ?? lastVersion.tenantEmail,
+    //   tenantName: tenantName ?? lastVersion.tenantName,
+    //   tenantMobile: tenantMobile ?? lastVersion.tenantMobile,
+    //   tenantEmail: tenantEmail ?? lastVersion.tenantEmail,
 
-      // ================= REDESIGN HANDLING =================
-      // Only applicable for redesign applications
-      // If new redesign provided → update
-      // Else → retain previous redesign
-      redesign:
-        application.unitType === "Redesign Unit"
-          ? (redesign ?? lastVersion.redesign)
-          : undefined,
+    //   // ================= REDESIGN HANDLING =================
+    //   // Only applicable for redesign applications
+    //   // If new redesign provided → update
+    //   // Else → retain previous redesign
+    //   redesign:
+    //     application.unitType === "Redesign Unit"
+    //       ? (redesign ?? lastVersion.redesign)
+    //       : undefined,
 
-      // ================= DOCUMENT VERSIONING =================
-      documents: {
-        ejariDocument: mergeDocs(
-          lastVersion.documents?.ejariDocument,
-          ejariDocument,
-        ),
-        appointmentLetter: mergeDocs(
-          lastVersion.documents?.appointmentLetter,
-          appointmentLetter,
-        ),
-        fitOutDrawings: mergeDocs(
-          lastVersion.documents?.fitOutDrawings,
-          fitOutDrawings,
-        ),
-      },
+    //   // ================= DOCUMENT VERSIONING =================
+    //   documents: {
+    //     ejariDocument: mergeDocs(
+    //       lastVersion.documents?.ejariDocument,
+    //       ejariDocument,
+    //     ),
+    //     appointmentLetter: mergeDocs(
+    //       lastVersion.documents?.appointmentLetter,
+    //       appointmentLetter,
+    //     ),
+    //     fitOutDrawings: mergeDocs(
+    //       lastVersion.documents?.fitOutDrawings,
+    //       fitOutDrawings,
+    //     ),
+    //   },
 
-      // ================= STATUS RESET =================
-      status: "UNDER_REVIEW",
+    //   // ================= STATUS RESET =================
+    //   status: "UNDER_REVIEW",
+    // };
+
+    lastVersion.usageType = usageType ?? lastVersion.usageType;
+
+    lastVersion.totalUnitAreaSqm =
+      totalUnitAreaSqm ?? lastVersion.totalUnitAreaSqm;
+
+    lastVersion.areaVariationSqm =
+      areaVariationSqm ?? lastVersion.areaVariationSqm;
+
+    lastVersion.hasMezzanine = hasMezzanine ?? lastVersion.hasMezzanine;
+
+    lastVersion.totalUnitAreaAfterMezzanineSqm =
+      totalUnitAreaAfterMezzanineSqm ??
+      lastVersion.totalUnitAreaAfterMezzanineSqm;
+
+    lastVersion.tenantName = tenantName ?? lastVersion.tenantName;
+
+    lastVersion.tenantMobile = tenantMobile ?? lastVersion.tenantMobile;
+
+    lastVersion.tenantEmail = tenantEmail ?? lastVersion.tenantEmail;
+
+    if (application.unitType === "Redesign Unit") {
+      lastVersion.redesign = redesign ?? lastVersion.redesign;
+    }
+
+    lastVersion.documents = {
+      ejariDocument: mergeDocs(
+        lastVersion.documents?.ejariDocument,
+        ejariDocument,
+      ),
+      appointmentLetter: mergeDocs(
+        lastVersion.documents?.appointmentLetter,
+        appointmentLetter,
+      ),
+      fitOutDrawings: mergeDocs(
+        lastVersion.documents?.fitOutDrawings,
+        fitOutDrawings,
+      ),
     };
 
+    lastVersion.status = "UNDER_REVIEW";
+    lastVersion.reviewedAt = null;
+    lastVersion.reviewedBy = null;
+    lastVersion.remarks = null;
+
     // ================= SAVE NEW VERSION =================
-    application.versions.push(newVersion);
-    application.currentVersion = newVersionNumber;
+    // application.versions.push(newVersion);
+    // application.currentVersion = newVersionNumber;
 
     await application.save({ session });
 
@@ -1341,18 +1399,66 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
     const seq = await getNextSequence("application", session);
     const referenceNumber = `APP${String(seq).padStart(9, "0")}`;
 
+    // let displayUnit = "";
+
+    // if (
+    //   ["SPLIT", "MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)
+    // ) {
+    //   displayUnit = `${redesignType} - ${resultUnits
+    //     .map((r) => `${r.name} (${r.area} sqm)`)
+    //     .join(", ")}`;
+    // } else if (redesignType === "MERGE") {
+    //   displayUnit = `${redesignType} - ${units
+    //     .map((u) => u.unitId)
+    //     .join(", ")} (${finalArea} sqm)`;
+    // }
+
     let displayUnit = "";
 
-    if (
-      ["SPLIT", "MERGE_AND_SPLIT", "SPLIT_AND_MERGE"].includes(redesignType)
-    ) {
-      displayUnit = `${redesignType} - ${resultUnits
-        .map((r) => `${r.name} (${r.area} sqm)`)
-        .join(", ")}`;
+    if (redesignType === "SPLIT") {
+      displayUnit =
+        `SPLIT - ${inputUnits
+          .map((i) => {
+            const unit = units.find(
+              (u) => u._id.toString() === i.unitId.toString(),
+            );
+            return `${unit.unitId} (${i.area} sqm)`;
+          })
+          .join(", ")} → ` +
+        resultUnits.map((r) => `${r.name} (${r.area} sqm)`).join(", ");
     } else if (redesignType === "MERGE") {
-      displayUnit = `${redesignType} - ${units
-        .map((u) => u.unitId)
-        .join(", ")} (${finalArea} sqm)`;
+      displayUnit =
+        `MERGE - ${inputUnits
+          .map((i) => {
+            const unit = units.find(
+              (u) => u._id.toString() === i.unitId.toString(),
+            );
+            return `${unit.unitId} (${i.area} sqm)`;
+          })
+          .join(", ")} → ` +
+        resultUnits.map((r) => `${r.name} (${r.area} sqm)`).join(", ");
+    } else if (redesignType === "MERGE_AND_SPLIT") {
+      displayUnit =
+        `MERGE_AND_SPLIT - ${inputUnits
+          .map((i) => {
+            const unit = units.find(
+              (u) => u._id.toString() === i.unitId.toString(),
+            );
+            return `${unit.unitId} (${i.area} sqm)`;
+          })
+          .join(", ")} → ` +
+        resultUnits.map((r) => `${r.name} (${r.area} sqm)`).join(", ");
+    } else if (redesignType === "SPLIT_AND_MERGE") {
+      displayUnit =
+        `SPLIT_AND_MERGE - ${inputUnits
+          .map((i) => {
+            const unit = units.find(
+              (u) => u._id.toString() === i.unitId.toString(),
+            );
+            return `${unit.unitId} (${i.area} sqm)`;
+          })
+          .join(", ")} → ` +
+        resultUnits.map((r) => `${r.name} (${r.area} sqm)`).join(", ");
     }
 
     const [doc] = await ContractorApplication.create(
