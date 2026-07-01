@@ -574,7 +574,8 @@ exports.submitApplicationSingle = catchAsync(async (req, res, next) => {
             {
               versionNumber: 1,
               usageType,
-              totalUnitAreaSqm: finalArea,
+              // totalUnitAreaSqm: finalArea,
+              totalUnitAreaSqm: totalUnitAreaSqm || 0,
               areaVariationSqm: areaVariationSqm || 0,
               hasMezzanine: !!hasMezzanine,
               fitOutAffectedArea: fitOutAffectedArea || 0,
@@ -983,6 +984,7 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
     }
 
     let finalArea = baseArea + modifyArea;
+    const baseTotalUnitAreaSqm = finalArea;
 
     if (hasMezzanine) {
       if (!totalUnitAreaAfterMezzanineSqm) {
@@ -1478,7 +1480,8 @@ exports.submitApplicationRedesign = catchAsync(async (req, res, next) => {
             {
               versionNumber: 1,
               usageType,
-              totalUnitAreaSqm: finalArea,
+              // totalUnitAreaSqm: finalArea,
+              totalUnitAreaSqm: baseTotalUnitAreaSqm,
               hasMezzanine: !!hasMezzanine,
               fitOutAffectedArea: fitOutAffectedArea || 0,
               mezzanineAreaToAdd: mezzanineAreaToAdd || 0,

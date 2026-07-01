@@ -505,6 +505,12 @@ exports.getDrawingByApplicationId = catchAsyncError(async (req, res, next) => {
       status: f.status,
       isLatest: f.isLatest,
       rejectionReason: f.rejectionReason,
+      rejectionReasonDoc: f.rejectionReasonDoc,
+      approvalRemarks: f.approvalRemarks,
+      approvalDoc: f.approvalDoc,
+      reviewer: f.reviewer,
+      approvedBy: f.approvedBy,
+      approvedAt: f.approvedAt,
       uploadedAt: f.uploadedAt,
     }));
 
