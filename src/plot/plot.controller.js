@@ -217,6 +217,16 @@ exports.createProject = catchAsync(async (req, res, next) => {
     return next(new ErrorHandler("Building data is required", 400));
   }
 
+  // ================= BUILDING USAGE VALIDATION =================
+  if (
+    !Array.isArray(building.buildingUsage) ||
+    building.buildingUsage.length === 0
+  ) {
+    return next(
+      new ErrorHandler("buildingUsage must be a non-empty array", 400),
+    );
+  }
+
   //LANDLORD
   const role = await Role.findOne({ name: "LANDLORD" });
   if (!role) return next(new ErrorHandler("Landlord role not found", 404));
@@ -1694,7 +1704,6 @@ exports.getApplicationFullDetails = catchAsync(async (req, res, next) => {
 });
 
 exports.updateBuilding = catchAsync(async (req, res, next) => {
-  
   const { buildingId } = req.params;
   const { buildingName, buildingSqft, buildingUsage, documents } = req.body;
 
@@ -1731,7 +1740,16 @@ exports.updateBuilding = catchAsync(async (req, res, next) => {
 
   // ================= SIMPLE FIELDS =================
   if (buildingSqft !== undefined) building.buildingSqft = buildingSqft;
-  if (buildingUsage !== undefined) building.buildingUsage = buildingUsage;
+  // if (buildingUsage !== undefined) building.buildingUsage = buildingUsage;
+
+  if (buildingUsage !== undefined) {
+    if (!Array.isArray(buildingUsage) || buildingUsage.length === 0) {
+      return next(
+        new ErrorHandler("buildingUsage must be a non-empty array", 400),
+      );
+    }
+    building.buildingUsage = buildingUsage;
+  }
 
   // ================= DOCUMENTS (PARTIAL UPDATE) =================
   if (documents) {
