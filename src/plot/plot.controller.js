@@ -1694,6 +1694,7 @@ exports.getApplicationFullDetails = catchAsync(async (req, res, next) => {
 });
 
 exports.updateBuilding = catchAsync(async (req, res, next) => {
+  
   const { buildingId } = req.params;
   const { buildingName, buildingSqft, buildingUsage, documents } = req.body;
 
