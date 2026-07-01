@@ -544,6 +544,7 @@ exports.reviewDrawingFile = catchAsyncError(async (req, res, next) => {
     type,
     action,
     approvalRemarks,
+    approvalDoc,
     rejectionReason,
     rejectionReasonDoc,
   } = req.body;
@@ -610,6 +611,8 @@ exports.reviewDrawingFile = catchAsyncError(async (req, res, next) => {
 
   file.approvalRemarks = action === "APPROVE" ? approvalRemarks : null;
 
+  file.approvalDoc = action === "APPROVE" ? approvalDoc || null : null;
+
   file.rejectionReason = action === "REJECT" ? rejectionReason : null;
 
   // NEW FIELD SAVE
@@ -617,7 +620,8 @@ exports.reviewDrawingFile = catchAsyncError(async (req, res, next) => {
 
   file.approvedBy = req.user?._id || null;
   file.reviewer = req.user?._id || null;
-  file.approvedAt = new Date();
+  // file.approvedAt = new Date();
+  file.approvedAt = action === "APPROVE" ? new Date() : null;
 
   await submission.save();
 
@@ -710,6 +714,7 @@ exports.reviewDrawingFile = catchAsyncError(async (req, res, next) => {
       versionNumber: file.versionNumber,
       status: file.status,
       approvalRemarks: file.approvalRemarks,
+      approvalDoc: file.approvalDoc,
       rejectionReason: file.rejectionReason,
       rejectionReasonDoc: file.rejectionReasonDoc,
     },
