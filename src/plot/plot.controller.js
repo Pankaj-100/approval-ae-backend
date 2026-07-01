@@ -1408,7 +1408,6 @@ exports.getFinalCompletion = catchAsync(async (req, res, next) => {
 });
 
 exports.resetApplicationUnits = catchAsync(async (req, res, next) => {
-  
   const { applicationId } = req.body;
 
   if (!applicationId) {
@@ -1691,5 +1690,77 @@ exports.getApplicationFullDetails = catchAsync(async (req, res, next) => {
 
       inspectionDetail,
     },
+  });
+});
+
+exports.updateBuilding = catchAsync(async (req, res, next) => {
+  const { buildingId } = req.params;
+  const { buildingName, buildingSqft, buildingUsage, documents } = req.body;
+
+  // ================= FETCH =================
+  const building = await BuildingDetails.findOne({
+    _id: buildingId,
+    isDeleted: false,
+  });
+
+  if (!building) {
+    return next(new ErrorHandler("Building not found", 404));
+  }
+
+  // ================= DUPLICATE NAME CHECK =================
+  if (buildingName && buildingName !== building.buildingName) {
+    const existingBuilding = await BuildingDetails.findOne({
+      _id: { $ne: buildingId },
+      plotId: building.plotId,
+      buildingName,
+      isDeleted: false,
+    });
+
+    if (existingBuilding) {
+      return next(
+        new ErrorHandler(
+          `Building ${buildingName} already exists in this plot`,
+          400,
+        ),
+      );
+    }
+
+    building.buildingName = buildingName;
+  }
+
+  // ================= SIMPLE FIELDS =================
+  if (buildingSqft !== undefined) building.buildingSqft = buildingSqft;
+  if (buildingUsage !== undefined) building.buildingUsage = buildingUsage;
+
+  // ================= DOCUMENTS (PARTIAL UPDATE) =================
+  if (documents) {
+    const docKeys = [
+      "siteAffectionPlan",
+      "dmCompletionCertificate",
+      "civilDefenseCertificate",
+      "amcContract",
+      "dewaApprovedLoadSchedule",
+    ];
+
+    for (const key of docKeys) {
+      if (documents[key]) {
+        building.documents[key] = {
+          url: documents[key].url ?? building.documents[key].url,
+          fileName: documents[key].fileName ?? building.documents[key].fileName,
+          fileSize: documents[key].fileSize ?? building.documents[key].fileSize,
+          uploadedAt: documents[key].url
+            ? new Date()
+            : building.documents[key].uploadedAt,
+        };
+      }
+    }
+  }
+
+  await building.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Building updated successfully",
+    data: building,
   });
 });
