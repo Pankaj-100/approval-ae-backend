@@ -35,6 +35,8 @@ const pricingRoutes = require("./src/superadmin-settings/pricing/pricing.routes"
 const checklistRoutes = require("./src/superadmin-settings/checklist/checklist.routes");
 const scheduleSlot = require("./src/schedule-settings/schedule.routes");
 const reviewerSlot = require("./src/schedule-settings/reviewer-slot/reviewerSlot.routes");
+const subAdminApplicationRoutes = require("./src/sub-admin-management/sub-admin-management.routes");
+const auth = require("./src/modules/auth/auth.routes");
 
 const app = express();
 
@@ -91,6 +93,8 @@ app.use("/api/v1/pricing-settings", pricingRoutes);
 app.use("/api/v1/checklist-settings", checklistRoutes);
 app.use("/api/v1/schedule-slot", scheduleSlot);
 app.use("/api/v1/reviewer-slot", reviewerSlot);
+// app.use("/api/v1/sub-admin/application", subAdminApplicationRoutes);
+app.use("/api/v1/auth", auth);
 
 /* =========================
    HEALTH CHECK
