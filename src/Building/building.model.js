@@ -13,6 +13,8 @@ const buildingSchema = new mongoose.Schema(
       required: true,
     },
 
+    
+
     buildingSqft: {
       type: Number,
       required: true,
