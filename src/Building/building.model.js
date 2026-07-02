@@ -19,7 +19,7 @@ const buildingSchema = new mongoose.Schema(
     },
 
     buildingUsage: {
-      type: String,
+      type: [String],
       required: true,
     },
 
